@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Cash Flow">
+  <rect width="512" height="512" rx="96" fill="#0f5f5c"/>
+  <path d="M140 318c58 42 151 42 232 0" fill="none" stroke="#d7f7dc" stroke-width="34" stroke-linecap="round"/>
+  <path d="M154 209h204" stroke="#f4c95d" stroke-width="36" stroke-linecap="round"/>
+  <path d="M194 151h124" stroke="#ffffff" stroke-width="32" stroke-linecap="round"/>
+  <circle cx="172" cy="318" r="18" fill="#ffffff"/>
+  <circle cx="340" cy="318" r="18" fill="#ffffff"/>
+</svg>
