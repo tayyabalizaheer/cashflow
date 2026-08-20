@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE `expense` ADD COLUMN `mainCurrency` VARCHAR(191) NULL,
+ALTER TABLE `Expense` ADD COLUMN `mainCurrency` VARCHAR(191) NULL,
     ADD COLUMN `name` VARCHAR(191) NULL;
 
 -- CreateTable
