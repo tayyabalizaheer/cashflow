@@ -3,7 +3,20 @@ import * as cheerio from "cheerio";
 import { prisma } from "../config/prisma.js";
 
 const SOURCE_URL = "https://www.almeezangroup.com/fund-prices/";
-const READABLE_SOURCE_URL = "https://r.jina.ai/http://r.jina.ai/http://https://www.almeezangroup.com/fund-prices/";
+const SOURCE_URL_HTTP = "http://www.almeezangroup.com/fund-prices/";
+const JINA_READER_PREFIX = "https://r.jina.ai/http://r.jina.ai/http://";
+
+const stockSources = [
+  { label: "Al Meezan direct", url: SOURCE_URL },
+  {
+    label: "Al Meezan readable mirror (https)",
+    url: `${JINA_READER_PREFIX}${SOURCE_URL}`,
+  },
+  {
+    label: "Al Meezan readable mirror (http)",
+    url: `${JINA_READER_PREFIX}${SOURCE_URL_HTTP}`,
+  },
+] as const;
 
 const headers = [
   "fundName",
@@ -26,7 +39,7 @@ const headers = [
   "cytdReturn",
   "fy25Return",
   "fy24Return",
-  "sinceInceptionReturn"
+  "sinceInceptionReturn",
 ] as const;
 
 type HeaderKey = (typeof headers)[number];
@@ -53,8 +66,10 @@ const columnLabels: Record<HeaderKey, string> = {
   trusteeFee: "Trustee Fee (%)",
   regulatoryFee: "Regulatory. Fee (%)",
   leviesAndTaxes: "Levies and Taxes",
-  transactionExpenses: "Transaction Expenses (Broker, Bank, PSX, CDC, NCCPL etc)",
-  thirdPartyExpenses: "Third Party Expenses (Auditor, Rating Agency, Legal, Shariah Advisor)",
+  transactionExpenses:
+    "Transaction Expenses (Broker, Bank, PSX, CDC, NCCPL etc)",
+  thirdPartyExpenses:
+    "Third Party Expenses (Auditor, Rating Agency, Legal, Shariah Advisor)",
   otherExpenses: "Other Expenses",
   terWithLevies: "TER with Levies",
   terWithoutLevies: "TER without Levies",
@@ -63,7 +78,7 @@ const columnLabels: Record<HeaderKey, string> = {
   cytdReturn: "CYTD Return",
   fy25Return: "FY25 (%) Return",
   fy24Return: "FY24 (%) Return",
-  sinceInceptionReturn: "Since Inception Return"
+  sinceInceptionReturn: "Since Inception Return",
 };
 
 function cleanCell(value: string | undefined) {
@@ -80,7 +95,7 @@ function parseMarkdownTable(markdown: string) {
       line
         .slice(1, -1)
         .split("|")
-        .map((cell) => cell.trim())
+        .map((cell) => cell.trim()),
     );
 }
 
@@ -109,7 +124,11 @@ function parseHtmlTables(html: string) {
     }
   });
 
-  return tables.find((table) => table.some((row) => row.some((cell) => cell.includes("Repurchase")))) ?? [];
+  return (
+    tables.find((table) =>
+      table.some((row) => row.some((cell) => cell.includes("Repurchase"))),
+    ) ?? []
+  );
 }
 
 function normalizeRows(tableRows: string[][]) {
@@ -142,20 +161,19 @@ function normalizeRows(tableRows: string[][]) {
       continue;
     }
 
-    const values = Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? null])) as Record<
-      HeaderKey,
-      string | null
-    >;
+    const values = Object.fromEntries(
+      headers.map((header, index) => [header, cells[index] ?? null]),
+    ) as Record<HeaderKey, string | null>;
 
     const rawValues = Object.fromEntries(
-      headers.map((header) => [columnLabels[header], values[header]])
+      headers.map((header) => [columnLabels[header], values[header]]),
     ) as Record<string, string | null>;
 
     records.push({
       ...values,
       fundName,
       category: currentCategory,
-      rawValues
+      rawValues,
     });
   }
 
@@ -174,40 +192,47 @@ export function parseStockRows(content: string) {
 async function fetchText(url: string) {
   const response = await fetch(url, {
     headers: {
-      accept: "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
+      accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
       "accept-language": "en-US,en;q=0.9",
       "user-agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"
-    }
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
+    },
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Failed to fetch ${url}: ${response.status} ${response.statusText}`,
+    );
   }
 
   return response.text();
 }
 
 export async function fetchStockRows() {
-  try {
-    const html = await fetchText(SOURCE_URL);
-    const rows = parseStockRows(html);
+  const failures: string[] = [];
 
-    if (rows.length > 0) {
-      return rows;
+  for (const source of stockSources) {
+    try {
+      const content = await fetchText(source.url);
+      const rows = parseStockRows(content);
+
+      if (rows.length > 0) {
+        return rows;
+      }
+
+      failures.push(`${source.label}: no stock rows found`);
+      console.warn(`Stock scrape source returned no rows: ${source.label}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`${source.label}: ${message}`);
+      console.warn(`Stock scrape source failed: ${source.label}. ${message}`);
     }
-  } catch (error) {
-    console.warn("Direct Al Meezan stock scrape failed; retrying through readable page mirror.", error);
   }
 
-  const markdown = await fetchText(READABLE_SOURCE_URL);
-  const rows = parseStockRows(markdown);
-
-  if (rows.length === 0) {
-    throw new Error("No stock rows were found.");
-  }
-
-  return rows;
+  throw new Error(
+    `No stock rows were found. Sources tried: ${failures.join(" | ")}`,
+  );
 }
 
 function parseDate(value: string | null) {
@@ -221,7 +246,9 @@ function parseDate(value: string | null) {
   }
 
   const date = new Date(parsed);
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
 }
 
 function parseDecimal(value: string | null) {
@@ -240,7 +267,7 @@ function parseDecimal(value: string | null) {
 function toImportRow(row: StockRow): ImportRow {
   return {
     ...row,
-    rawValues: row.rawValues as Prisma.InputJsonObject
+    rawValues: row.rawValues as Prisma.InputJsonObject,
   };
 }
 
@@ -259,8 +286,8 @@ export async function scrapeAndSaveStocks() {
       where: {
         fundName_validityDate: {
           fundName: row.fundName,
-          validityDate
-        }
+          validityDate,
+        },
       },
       create: {
         fundName: row.fundName,
@@ -287,7 +314,7 @@ export async function scrapeAndSaveStocks() {
         sinceInceptionReturn: parseDecimal(row.sinceInceptionReturn),
         rawValues: row.rawValues,
         sourceUrl: SOURCE_URL,
-        scrapedAt
+        scrapedAt,
       },
       update: {
         category: row.category,
@@ -312,8 +339,8 @@ export async function scrapeAndSaveStocks() {
         sinceInceptionReturn: parseDecimal(row.sinceInceptionReturn),
         rawValues: row.rawValues,
         sourceUrl: SOURCE_URL,
-        scrapedAt
-      }
+        scrapedAt,
+      },
     });
   }
 
