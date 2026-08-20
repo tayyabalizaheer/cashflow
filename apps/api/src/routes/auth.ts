@@ -20,11 +20,14 @@ export const authRouter = Router();
 const passwordSchema = z.string().min(10).max(128);
 const registerSchema = z
   .object({
-    fullName: z.string().trim().min(2).max(120),
-    email: z.string().email(),
-    password: passwordSchema,
-    passwordConfirmation: z.string(),
-    termsAccepted: z.literal(true)
+    fullName: z.string().trim().min(2, "Full name must be at least 2 characters.").max(120, "Full name is too long."),
+    email: z.string().email("Enter a valid email address."),
+    password: z
+      .string()
+      .min(10, "Password must be at least 10 characters.")
+      .max(128, "Password is too long."),
+    passwordConfirmation: z.string().min(1, "Confirm your password."),
+    termsAccepted: z.literal(true, "Accept the terms to create an account.")
   })
   .refine((data) => data.password === data.passwordConfirmation, {
     path: ["passwordConfirmation"],
@@ -32,13 +35,13 @@ const registerSchema = z
   });
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: z.string().email("Enter a valid email address."),
+  password: z.string().min(1, "Enter your password."),
   rememberMe: z.boolean().default(false)
 });
 
 const forgotPasswordSchema = z.object({
-  email: z.string().email()
+  email: z.string().email("Enter a valid email address.")
 });
 
 const resetPasswordSchema = z
@@ -200,7 +203,12 @@ authRouter.post(
 
     res.cookie(refreshCookieName, refreshToken, refreshCookieOptions(ttlMs));
     const accessToken = signAccessToken({ sub: session.userId, email: session.user.email });
-    return res.json({ data: { accessToken } });
+    return res.json({
+      data: {
+        user: { id: session.user.id, email: session.user.email, fullName: session.user.fullName },
+        accessToken
+      }
+    });
   })
 );
 

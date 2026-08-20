@@ -1,0 +1,1 @@
+-- No-op: the stock table is now created with its final name.

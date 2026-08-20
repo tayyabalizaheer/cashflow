@@ -6,19 +6,21 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "prisma generate && tsc -p tsconfig.json",
+    "build": "node scripts/with-database-url.mjs prisma generate && tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "test": "prisma generate && vitest run",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
+    "test": "node scripts/with-database-url.mjs prisma generate && vitest run",
+    "prisma:generate": "node scripts/with-database-url.mjs prisma generate",
+    "prisma:migrate": "node scripts/with-database-url.mjs prisma migrate deploy",
+    "prisma:migrate:dev": "node scripts/with-database-url.mjs prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
     "openapi": "tsx src/openapi.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.12.0",
     "argon2": "^0.43.1",
+    "cheerio": "^1.2.0",
     "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -30,6 +32,7 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.1",
     "nanoid": "^5.1.5",
+    "node-cron": "^4.6.0",
     "swagger-ui-express": "^5.0.1",
     "zod": "^4.0.17"
   },

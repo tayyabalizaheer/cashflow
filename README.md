@@ -6,7 +6,8 @@ Cash Flow is a Node.js Progressive Web App for personal finance tracking: expens
 
 - Web: React, TypeScript, Vite, React Router, TanStack Query, Recharts, PWA service worker
 - API: Node.js, TypeScript, Express, Zod validation, JWT access tokens, rotating refresh-token cookies
-- Database: SQLite, Prisma ORM, fixed-precision `Decimal` money values
+- Backend database: MySQL, Prisma ORM, fixed-precision `Decimal` money values
+- Frontend database: browser SQLite through `sql.js` for fast local access and offline entries
 - Quality: Vitest, Supertest, ESLint, Prettier, Docker Compose, GitHub Actions
 
 ## Local Setup
@@ -23,14 +24,22 @@ Cash Flow is a Node.js Progressive Web App for personal finance tracking: expens
    cp .env.example .env
    ```
 
-3. Generate Prisma client and run SQLite migrations:
+   Database settings are split into `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, and `DATABASE_NAME`. The API builds Prisma's internal connection URL from those values.
+
+3. Start MySQL:
+
+   ```bash
+   docker compose up -d mysql
+   ```
+
+4. Generate Prisma client and run MySQL migrations:
 
    ```bash
    npm run prisma:generate --workspace @cash-flow/api
    npm run db:migrate
    ```
 
-4. Seed demo data:
+5. Seed demo data:
 
    ```bash
    npm run db:seed
@@ -41,7 +50,7 @@ Cash Flow is a Node.js Progressive Web App for personal finance tracking: expens
    - Email: `demo@cashflow.local`
    - Password: `DemoPassword123`
 
-5. Start the app:
+6. Start the app:
 
    ```bash
    npm run dev --workspace @cash-flow/api
@@ -90,6 +99,9 @@ All protected endpoints require `Authorization: Bearer <access-token>`.
 - `GET|POST|PUT /api/v1/exchange-rates`
 - `GET /api/v1/dashboard`
 - `GET|POST /api/v1/zakat/calculations`
+- `GET /api/v1/sync/bootstrap`
+- `GET /api/v1/sync/status`
+- `POST /api/v1/sync/push`
 - `GET /api/v1/exports/:module.csv`
 
 ## Security Notes
@@ -97,11 +109,13 @@ All protected endpoints require `Authorization: Bearer <access-token>`.
 - Passwords are hashed with Argon2id.
 - Access tokens are short lived and returned to the client; refresh tokens are opaque, hashed in the database, rotated, and stored in `HttpOnly` cookies.
 - Financial queries include `userId` ownership filters.
-- Money is stored through Prisma `Decimal` in SQLite.
+- Money is stored through Prisma `Decimal` in MySQL.
 - CSV export prefixes formula-like cells to reduce spreadsheet injection risk.
 - Auth responses avoid user enumeration for password reset.
-- After login, financial mutations can be queued locally when offline and retried when the API is reachable again.
+- MySQL is the source of truth on the backend.
+- After login, owner-scoped server data is fetched into browser SQLite with visible progress.
+- New frontend entries can be queued in browser SQLite and retried when the API is reachable.
 
 ## Current State
 
-This is a working production-oriented scaffold, not a finished personal-finance product. It includes the app foundation, SQLite database schema, real API routes, PWA setup, offline mutation queue, core calculations, Docker, CI, and tests. Remaining work should focus on full create/edit forms in the web app, email provider integration, online server conflict resolution, Playwright end-to-end tests, and deeper reporting screens.
+This is a working production-oriented scaffold, not a finished personal-finance product. It includes the app foundation, MySQL backend schema, browser SQLite local store, real API routes, PWA setup, offline mutation queue, core calculations, Docker, CI, and tests. Remaining work should focus on full create/edit forms in the web app, email provider integration, online server conflict resolution, Playwright end-to-end tests, and deeper reporting screens.

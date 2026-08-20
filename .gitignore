@@ -5,6 +5,7 @@ coverage/
 .env.*
 !.env.example
 *.log
+*.db
 apps/web/.vite/
 playwright-report/
 test-results/

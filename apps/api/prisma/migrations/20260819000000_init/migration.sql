@@ -1,401 +1,397 @@
 -- CreateTable
-CREATE TABLE "User" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "fullName" TEXT NOT NULL,
-    "email" TEXT NOT NULL,
-    "passwordHash" TEXT NOT NULL,
-    "emailVerifiedAt" DATETIME,
-    "failedLoginCount" INTEGER NOT NULL DEFAULT 0,
-    "lockedUntil" DATETIME,
-    "termsAcceptedAt" DATETIME NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    "deletedAt" DATETIME
-);
+CREATE TABLE `User` (
+    `id` VARCHAR(191) NOT NULL,
+    `fullName` VARCHAR(191) NOT NULL,
+    `email` VARCHAR(191) NOT NULL,
+    `passwordHash` VARCHAR(191) NOT NULL,
+    `emailVerifiedAt` DATETIME(3) NULL,
+    `failedLoginCount` INTEGER NOT NULL DEFAULT 0,
+    `lockedUntil` DATETIME(3) NULL,
+    `termsAcceptedAt` DATETIME(3) NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `deletedAt` DATETIME(3) NULL,
+
+    UNIQUE INDEX `User_email_key`(`email`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "UserPreference" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "baseCurrency" TEXT NOT NULL DEFAULT 'USD',
-    "locale" TEXT NOT NULL DEFAULT 'en-US',
-    "timeZone" TEXT NOT NULL DEFAULT 'UTC',
-    "theme" TEXT NOT NULL DEFAULT 'system',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "UserPreference_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
+CREATE TABLE `UserPreference` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `baseCurrency` VARCHAR(191) NOT NULL DEFAULT 'USD',
+    `locale` VARCHAR(191) NOT NULL DEFAULT 'en-US',
+    `timeZone` VARCHAR(191) NOT NULL DEFAULT 'UTC',
+    `theme` VARCHAR(191) NOT NULL DEFAULT 'system',
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `UserPreference_userId_key`(`userId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "RefreshSession" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "tokenHash" TEXT NOT NULL,
-    "familyId" TEXT NOT NULL,
-    "userAgent" TEXT,
-    "ipAddress" TEXT,
-    "expiresAt" DATETIME NOT NULL,
-    "revokedAt" DATETIME,
-    "replacedByTokenId" TEXT,
-    "reuseDetectedAt" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "RefreshSession_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
+CREATE TABLE `RefreshSession` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `tokenHash` VARCHAR(191) NOT NULL,
+    `familyId` VARCHAR(191) NOT NULL,
+    `userAgent` VARCHAR(191) NULL,
+    `ipAddress` VARCHAR(191) NULL,
+    `expiresAt` DATETIME(3) NOT NULL,
+    `revokedAt` DATETIME(3) NULL,
+    `replacedByTokenId` VARCHAR(191) NULL,
+    `reuseDetectedAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `RefreshSession_tokenHash_key`(`tokenHash`),
+    INDEX `RefreshSession_userId_expiresAt_idx`(`userId`, `expiresAt`),
+    INDEX `RefreshSession_familyId_idx`(`familyId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "EmailVerificationToken" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "tokenHash" TEXT NOT NULL,
-    "expiresAt" DATETIME NOT NULL,
-    "usedAt" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "EmailVerificationToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
+CREATE TABLE `EmailVerificationToken` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `tokenHash` VARCHAR(191) NOT NULL,
+    `expiresAt` DATETIME(3) NOT NULL,
+    `usedAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `EmailVerificationToken_tokenHash_key`(`tokenHash`),
+    INDEX `EmailVerificationToken_userId_expiresAt_idx`(`userId`, `expiresAt`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "PasswordResetToken" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "tokenHash" TEXT NOT NULL,
-    "expiresAt" DATETIME NOT NULL,
-    "usedAt" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "PasswordResetToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
+CREATE TABLE `PasswordResetToken` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `tokenHash` VARCHAR(191) NOT NULL,
+    `expiresAt` DATETIME(3) NOT NULL,
+    `usedAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `PasswordResetToken_tokenHash_key`(`tokenHash`),
+    INDEX `PasswordResetToken_userId_expiresAt_idx`(`userId`, `expiresAt`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "ExpenseCategory" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "color" TEXT NOT NULL DEFAULT '#047857',
-    "icon" TEXT NOT NULL DEFAULT 'circle',
-    "active" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    "archivedAt" DATETIME,
-    CONSTRAINT "ExpenseCategory_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
+CREATE TABLE `ExpenseCategory` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `color` VARCHAR(191) NOT NULL DEFAULT '#047857',
+    `icon` VARCHAR(191) NOT NULL DEFAULT 'circle',
+    `active` BOOLEAN NOT NULL DEFAULT true,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `archivedAt` DATETIME(3) NULL,
+
+    INDEX `ExpenseCategory_userId_active_idx`(`userId`, `active`),
+    UNIQUE INDEX `ExpenseCategory_userId_name_key`(`userId`, `name`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "Expense" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "categoryId" TEXT NOT NULL,
-    "purpose" TEXT NOT NULL,
-    "amount" DECIMAL NOT NULL,
-    "currency" TEXT NOT NULL,
-    "expenseDate" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "notes" TEXT,
-    "paymentMethod" TEXT,
-    "recurring" BOOLEAN NOT NULL DEFAULT false,
-    "frequency" TEXT,
-    "receiptName" TEXT,
-    "receiptUrl" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    "archivedAt" DATETIME,
-    CONSTRAINT "Expense_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "Expense_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "ExpenseCategory" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
-);
+CREATE TABLE `Expense` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `categoryId` VARCHAR(191) NOT NULL,
+    `purpose` VARCHAR(191) NOT NULL,
+    `amount` DECIMAL(19, 4) NOT NULL,
+    `currency` VARCHAR(191) NOT NULL,
+    `expenseDate` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `notes` VARCHAR(191) NULL,
+    `paymentMethod` VARCHAR(191) NULL,
+    `recurring` BOOLEAN NOT NULL DEFAULT false,
+    `frequency` VARCHAR(191) NULL,
+    `receiptName` VARCHAR(191) NULL,
+    `receiptUrl` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `archivedAt` DATETIME(3) NULL,
+
+    INDEX `Expense_userId_expenseDate_idx`(`userId`, `expenseDate`),
+    INDEX `Expense_userId_currency_idx`(`userId`, `currency`),
+    INDEX `Expense_userId_categoryId_idx`(`userId`, `categoryId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "Loan" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "person" TEXT NOT NULL,
-    "purpose" TEXT NOT NULL,
-    "amount" DECIMAL NOT NULL,
-    "currency" TEXT NOT NULL,
-    "direction" TEXT NOT NULL,
-    "loanDate" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "dueDate" DATETIME,
-    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
-    "notes" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    "archivedAt" DATETIME,
-    CONSTRAINT "Loan_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
+CREATE TABLE `Loan` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `person` VARCHAR(191) NOT NULL,
+    `purpose` VARCHAR(191) NOT NULL,
+    `amount` DECIMAL(19, 4) NOT NULL,
+    `currency` VARCHAR(191) NOT NULL,
+    `direction` VARCHAR(191) NOT NULL,
+    `loanDate` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `dueDate` DATETIME(3) NULL,
+    `status` VARCHAR(191) NOT NULL DEFAULT 'ACTIVE',
+    `notes` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `archivedAt` DATETIME(3) NULL,
+
+    INDEX `Loan_userId_loanDate_idx`(`userId`, `loanDate`),
+    INDEX `Loan_userId_status_idx`(`userId`, `status`),
+    INDEX `Loan_userId_currency_idx`(`userId`, `currency`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "LoanRepayment" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "loanId" TEXT NOT NULL,
-    "amount" DECIMAL NOT NULL,
-    "currency" TEXT NOT NULL,
-    "paymentDate" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "notes" TEXT,
-    "adjustment" BOOLEAN NOT NULL DEFAULT false,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    "archivedAt" DATETIME,
-    CONSTRAINT "LoanRepayment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "LoanRepayment_loanId_fkey" FOREIGN KEY ("loanId") REFERENCES "Loan" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
+CREATE TABLE `LoanRepayment` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `loanId` VARCHAR(191) NOT NULL,
+    `amount` DECIMAL(19, 4) NOT NULL,
+    `currency` VARCHAR(191) NOT NULL,
+    `paymentDate` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `notes` VARCHAR(191) NULL,
+    `adjustment` BOOLEAN NOT NULL DEFAULT false,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `archivedAt` DATETIME(3) NULL,
+
+    INDEX `LoanRepayment_userId_loanId_idx`(`userId`, `loanId`),
+    INDEX `LoanRepayment_userId_paymentDate_idx`(`userId`, `paymentDate`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "Investment" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "type" TEXT NOT NULL,
-    "name" TEXT,
-    "amountInvested" DECIMAL NOT NULL,
-    "currency" TEXT NOT NULL,
-    "quantity" DECIMAL,
-    "nav" DECIMAL,
-    "currentValue" DECIMAL,
-    "purchaseDate" DATETIME,
-    "latestValuationDate" DATETIME,
-    "notes" TEXT,
-    "zakatEligible" BOOLEAN NOT NULL DEFAULT false,
-    "zakatPercentage" DECIMAL NOT NULL DEFAULT 100,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    "archivedAt" DATETIME,
-    CONSTRAINT "Investment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
+CREATE TABLE `Investment` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `type` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(191) NULL,
+    `amountInvested` DECIMAL(19, 4) NOT NULL,
+    `currency` VARCHAR(191) NOT NULL,
+    `quantity` DECIMAL(19, 8) NULL,
+    `nav` DECIMAL(19, 8) NULL,
+    `currentValue` DECIMAL(19, 4) NULL,
+    `purchaseDate` DATETIME(3) NULL,
+    `latestValuationDate` DATETIME(3) NULL,
+    `notes` VARCHAR(191) NULL,
+    `zakatEligible` BOOLEAN NOT NULL DEFAULT false,
+    `zakatPercentage` DECIMAL(5, 2) NOT NULL DEFAULT 100,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `archivedAt` DATETIME(3) NULL,
+
+    INDEX `Investment_userId_type_idx`(`userId`, `type`),
+    INDEX `Investment_userId_currency_idx`(`userId`, `currency`),
+    INDEX `Investment_userId_purchaseDate_idx`(`userId`, `purchaseDate`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "Asset" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "assetType" TEXT NOT NULL DEFAULT 'Other',
-    "value" DECIMAL NOT NULL,
-    "currency" TEXT NOT NULL,
-    "acquisitionDate" DATETIME,
-    "valuationDate" DATETIME,
-    "zakatEligible" BOOLEAN NOT NULL DEFAULT false,
-    "zakatPercentage" DECIMAL NOT NULL DEFAULT 100,
-    "notes" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    "archivedAt" DATETIME,
-    CONSTRAINT "Asset_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
+CREATE TABLE `Asset` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `assetType` VARCHAR(191) NOT NULL DEFAULT 'Other',
+    `value` DECIMAL(19, 4) NOT NULL,
+    `currency` VARCHAR(191) NOT NULL,
+    `acquisitionDate` DATETIME(3) NULL,
+    `valuationDate` DATETIME(3) NULL,
+    `zakatEligible` BOOLEAN NOT NULL DEFAULT false,
+    `zakatPercentage` DECIMAL(5, 2) NOT NULL DEFAULT 100,
+    `notes` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `archivedAt` DATETIME(3) NULL,
+
+    INDEX `Asset_userId_assetType_idx`(`userId`, `assetType`),
+    INDEX `Asset_userId_currency_idx`(`userId`, `currency`),
+    INDEX `Asset_userId_valuationDate_idx`(`userId`, `valuationDate`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "ExchangeRate" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "baseCurrency" TEXT NOT NULL,
-    "quoteCurrency" TEXT NOT NULL,
-    "rate" DECIMAL NOT NULL,
-    "source" TEXT NOT NULL,
-    "rateDate" DATETIME NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "ExchangeRate_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
+CREATE TABLE `ExchangeRate` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `baseCurrency` VARCHAR(191) NOT NULL,
+    `quoteCurrency` VARCHAR(191) NOT NULL,
+    `rate` DECIMAL(19, 8) NOT NULL,
+    `source` VARCHAR(191) NOT NULL,
+    `rateDate` DATETIME(3) NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `ExchangeRate_userId_rateDate_idx`(`userId`, `rateDate`),
+    UNIQUE INDEX `ExchangeRate_userId_baseCurrency_quoteCurrency_rateDate_key`(`userId`, `baseCurrency`, `quoteCurrency`, `rateDate`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "ZakatCalculation" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "calculationDate" DATETIME NOT NULL,
-    "yearLabel" TEXT NOT NULL,
-    "method" TEXT NOT NULL DEFAULT 'Configurable standard method',
-    "rate" DECIMAL NOT NULL DEFAULT 0.025,
-    "nisabBasis" TEXT NOT NULL,
-    "nisabThreshold" DECIMAL NOT NULL,
-    "currency" TEXT NOT NULL,
-    "goldSilverPrice" DECIMAL,
-    "priceSource" TEXT,
-    "priceDate" DATETIME,
-    "totalZakatableWealth" DECIMAL NOT NULL,
-    "thresholdMet" BOOLEAN NOT NULL,
-    "estimatedZakatDue" DECIMAL NOT NULL,
-    "breakdown" JSONB NOT NULL,
-    "disclaimerAcceptedAt" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    "archivedAt" DATETIME,
-    CONSTRAINT "ZakatCalculation_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
+CREATE TABLE `ZakatCalculation` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `calculationDate` DATETIME(3) NOT NULL,
+    `yearLabel` VARCHAR(191) NOT NULL,
+    `method` VARCHAR(191) NOT NULL DEFAULT 'Configurable standard method',
+    `rate` DECIMAL(8, 6) NOT NULL DEFAULT 0.025,
+    `nisabBasis` VARCHAR(191) NOT NULL,
+    `nisabThreshold` DECIMAL(19, 4) NOT NULL,
+    `currency` VARCHAR(191) NOT NULL,
+    `goldSilverPrice` DECIMAL(19, 4) NULL,
+    `priceSource` VARCHAR(191) NULL,
+    `priceDate` DATETIME(3) NULL,
+    `totalZakatableWealth` DECIMAL(19, 4) NOT NULL,
+    `thresholdMet` BOOLEAN NOT NULL,
+    `estimatedZakatDue` DECIMAL(19, 4) NOT NULL,
+    `breakdown` JSON NOT NULL,
+    `disclaimerAcceptedAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `archivedAt` DATETIME(3) NULL,
+
+    INDEX `ZakatCalculation_userId_calculationDate_idx`(`userId`, `calculationDate`),
+    INDEX `ZakatCalculation_userId_currency_idx`(`userId`, `currency`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "ZakatCalculationItem" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "calculationId" TEXT NOT NULL,
-    "kind" TEXT NOT NULL,
-    "sourceEntityId" TEXT,
-    "label" TEXT NOT NULL,
-    "amount" DECIMAL NOT NULL,
-    "currency" TEXT NOT NULL,
-    "included" BOOLEAN NOT NULL DEFAULT true,
-    "eligibilityPct" DECIMAL NOT NULL DEFAULT 100,
-    "notes" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "ZakatCalculationItem_calculationId_fkey" FOREIGN KEY ("calculationId") REFERENCES "ZakatCalculation" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
+CREATE TABLE `ZakatCalculationItem` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `calculationId` VARCHAR(191) NOT NULL,
+    `kind` VARCHAR(191) NOT NULL,
+    `sourceEntityId` VARCHAR(191) NULL,
+    `label` VARCHAR(191) NOT NULL,
+    `amount` DECIMAL(19, 4) NOT NULL,
+    `currency` VARCHAR(191) NOT NULL,
+    `included` BOOLEAN NOT NULL DEFAULT true,
+    `eligibilityPct` DECIMAL(5, 2) NOT NULL DEFAULT 100,
+    `notes` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `ZakatCalculationItem_userId_calculationId_idx`(`userId`, `calculationId`),
+    INDEX `ZakatCalculationItem_userId_kind_idx`(`userId`, `kind`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "ZakatPayment" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "calculationId" TEXT,
-    "amount" DECIMAL NOT NULL,
-    "currency" TEXT NOT NULL,
-    "paymentDate" DATETIME NOT NULL,
-    "recipient" TEXT,
-    "notes" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    "archivedAt" DATETIME,
-    CONSTRAINT "ZakatPayment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "ZakatPayment_calculationId_fkey" FOREIGN KEY ("calculationId") REFERENCES "ZakatCalculation" ("id") ON DELETE SET NULL ON UPDATE CASCADE
-);
+CREATE TABLE `ZakatPayment` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `calculationId` VARCHAR(191) NULL,
+    `amount` DECIMAL(19, 4) NOT NULL,
+    `currency` VARCHAR(191) NOT NULL,
+    `paymentDate` DATETIME(3) NOT NULL,
+    `recipient` VARCHAR(191) NULL,
+    `notes` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `archivedAt` DATETIME(3) NULL,
+
+    INDEX `ZakatPayment_userId_paymentDate_idx`(`userId`, `paymentDate`),
+    INDEX `ZakatPayment_userId_currency_idx`(`userId`, `currency`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "AuditEvent" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT,
-    "action" TEXT NOT NULL,
-    "entityType" TEXT,
-    "entityId" TEXT,
-    "ipAddress" TEXT,
-    "userAgent" TEXT,
-    "metadata" JSONB,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "AuditEvent_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
-);
+CREATE TABLE `AuditEvent` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NULL,
+    `action` VARCHAR(191) NOT NULL,
+    `entityType` VARCHAR(191) NULL,
+    `entityId` VARCHAR(191) NULL,
+    `ipAddress` VARCHAR(191) NULL,
+    `userAgent` VARCHAR(191) NULL,
+    `metadata` JSON NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `AuditEvent_userId_createdAt_idx`(`userId`, `createdAt`),
+    INDEX `AuditEvent_action_idx`(`action`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "SyncOutbox" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "userId" TEXT NOT NULL,
-    "clientMutationId" TEXT NOT NULL,
-    "entityType" TEXT NOT NULL,
-    "entityId" TEXT,
-    "operation" TEXT NOT NULL,
-    "payload" JSONB NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'PENDING',
-    "lastAttemptAt" DATETIME,
-    "error" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "SyncOutbox_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
+CREATE TABLE `SyncOutbox` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `clientMutationId` VARCHAR(191) NOT NULL,
+    `entityType` VARCHAR(191) NOT NULL,
+    `entityId` VARCHAR(191) NULL,
+    `operation` VARCHAR(191) NOT NULL,
+    `payload` JSON NOT NULL,
+    `status` VARCHAR(191) NOT NULL DEFAULT 'PENDING',
+    `lastAttemptAt` DATETIME(3) NULL,
+    `error` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
 
--- CreateIndex
-CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+    UNIQUE INDEX `SyncOutbox_clientMutationId_key`(`clientMutationId`),
+    INDEX `SyncOutbox_userId_status_idx`(`userId`, `status`),
+    INDEX `SyncOutbox_userId_createdAt_idx`(`userId`, `createdAt`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- CreateIndex
-CREATE UNIQUE INDEX "UserPreference_userId_key" ON "UserPreference"("userId");
+-- AddForeignKey
+ALTER TABLE `UserPreference` ADD CONSTRAINT `UserPreference_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE UNIQUE INDEX "RefreshSession_tokenHash_key" ON "RefreshSession"("tokenHash");
+-- AddForeignKey
+ALTER TABLE `RefreshSession` ADD CONSTRAINT `RefreshSession_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE INDEX "RefreshSession_userId_expiresAt_idx" ON "RefreshSession"("userId", "expiresAt");
+-- AddForeignKey
+ALTER TABLE `EmailVerificationToken` ADD CONSTRAINT `EmailVerificationToken_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE INDEX "RefreshSession_familyId_idx" ON "RefreshSession"("familyId");
+-- AddForeignKey
+ALTER TABLE `PasswordResetToken` ADD CONSTRAINT `PasswordResetToken_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE UNIQUE INDEX "EmailVerificationToken_tokenHash_key" ON "EmailVerificationToken"("tokenHash");
+-- AddForeignKey
+ALTER TABLE `ExpenseCategory` ADD CONSTRAINT `ExpenseCategory_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE INDEX "EmailVerificationToken_userId_expiresAt_idx" ON "EmailVerificationToken"("userId", "expiresAt");
+-- AddForeignKey
+ALTER TABLE `Expense` ADD CONSTRAINT `Expense_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE UNIQUE INDEX "PasswordResetToken_tokenHash_key" ON "PasswordResetToken"("tokenHash");
+-- AddForeignKey
+ALTER TABLE `Expense` ADD CONSTRAINT `Expense_categoryId_fkey` FOREIGN KEY (`categoryId`) REFERENCES `ExpenseCategory`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE INDEX "PasswordResetToken_userId_expiresAt_idx" ON "PasswordResetToken"("userId", "expiresAt");
+-- AddForeignKey
+ALTER TABLE `Loan` ADD CONSTRAINT `Loan_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE INDEX "ExpenseCategory_userId_active_idx" ON "ExpenseCategory"("userId", "active");
+-- AddForeignKey
+ALTER TABLE `LoanRepayment` ADD CONSTRAINT `LoanRepayment_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE UNIQUE INDEX "ExpenseCategory_userId_name_key" ON "ExpenseCategory"("userId", "name");
+-- AddForeignKey
+ALTER TABLE `LoanRepayment` ADD CONSTRAINT `LoanRepayment_loanId_fkey` FOREIGN KEY (`loanId`) REFERENCES `Loan`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE INDEX "Expense_userId_expenseDate_idx" ON "Expense"("userId", "expenseDate");
+-- AddForeignKey
+ALTER TABLE `Investment` ADD CONSTRAINT `Investment_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE INDEX "Expense_userId_currency_idx" ON "Expense"("userId", "currency");
+-- AddForeignKey
+ALTER TABLE `Asset` ADD CONSTRAINT `Asset_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE INDEX "Expense_userId_categoryId_idx" ON "Expense"("userId", "categoryId");
+-- AddForeignKey
+ALTER TABLE `ExchangeRate` ADD CONSTRAINT `ExchangeRate_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE INDEX "Loan_userId_loanDate_idx" ON "Loan"("userId", "loanDate");
+-- AddForeignKey
+ALTER TABLE `ZakatCalculation` ADD CONSTRAINT `ZakatCalculation_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE INDEX "Loan_userId_status_idx" ON "Loan"("userId", "status");
+-- AddForeignKey
+ALTER TABLE `ZakatCalculationItem` ADD CONSTRAINT `ZakatCalculationItem_calculationId_fkey` FOREIGN KEY (`calculationId`) REFERENCES `ZakatCalculation`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE INDEX "Loan_userId_currency_idx" ON "Loan"("userId", "currency");
+-- AddForeignKey
+ALTER TABLE `ZakatPayment` ADD CONSTRAINT `ZakatPayment_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE INDEX "LoanRepayment_userId_loanId_idx" ON "LoanRepayment"("userId", "loanId");
+-- AddForeignKey
+ALTER TABLE `ZakatPayment` ADD CONSTRAINT `ZakatPayment_calculationId_fkey` FOREIGN KEY (`calculationId`) REFERENCES `ZakatCalculation`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE INDEX "LoanRepayment_userId_paymentDate_idx" ON "LoanRepayment"("userId", "paymentDate");
+-- AddForeignKey
+ALTER TABLE `AuditEvent` ADD CONSTRAINT `AuditEvent_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
--- CreateIndex
-CREATE INDEX "Investment_userId_type_idx" ON "Investment"("userId", "type");
-
--- CreateIndex
-CREATE INDEX "Investment_userId_currency_idx" ON "Investment"("userId", "currency");
-
--- CreateIndex
-CREATE INDEX "Investment_userId_purchaseDate_idx" ON "Investment"("userId", "purchaseDate");
-
--- CreateIndex
-CREATE INDEX "Asset_userId_assetType_idx" ON "Asset"("userId", "assetType");
-
--- CreateIndex
-CREATE INDEX "Asset_userId_currency_idx" ON "Asset"("userId", "currency");
-
--- CreateIndex
-CREATE INDEX "Asset_userId_valuationDate_idx" ON "Asset"("userId", "valuationDate");
-
--- CreateIndex
-CREATE INDEX "ExchangeRate_userId_rateDate_idx" ON "ExchangeRate"("userId", "rateDate");
-
--- CreateIndex
-CREATE UNIQUE INDEX "ExchangeRate_userId_baseCurrency_quoteCurrency_rateDate_key" ON "ExchangeRate"("userId", "baseCurrency", "quoteCurrency", "rateDate");
-
--- CreateIndex
-CREATE INDEX "ZakatCalculation_userId_calculationDate_idx" ON "ZakatCalculation"("userId", "calculationDate");
-
--- CreateIndex
-CREATE INDEX "ZakatCalculation_userId_currency_idx" ON "ZakatCalculation"("userId", "currency");
-
--- CreateIndex
-CREATE INDEX "ZakatCalculationItem_userId_calculationId_idx" ON "ZakatCalculationItem"("userId", "calculationId");
-
--- CreateIndex
-CREATE INDEX "ZakatCalculationItem_userId_kind_idx" ON "ZakatCalculationItem"("userId", "kind");
-
--- CreateIndex
-CREATE INDEX "ZakatPayment_userId_paymentDate_idx" ON "ZakatPayment"("userId", "paymentDate");
-
--- CreateIndex
-CREATE INDEX "ZakatPayment_userId_currency_idx" ON "ZakatPayment"("userId", "currency");
-
--- CreateIndex
-CREATE INDEX "AuditEvent_userId_createdAt_idx" ON "AuditEvent"("userId", "createdAt");
-
--- CreateIndex
-CREATE INDEX "AuditEvent_action_idx" ON "AuditEvent"("action");
-
--- CreateIndex
-CREATE UNIQUE INDEX "SyncOutbox_clientMutationId_key" ON "SyncOutbox"("clientMutationId");
-
--- CreateIndex
-CREATE INDEX "SyncOutbox_userId_status_idx" ON "SyncOutbox"("userId", "status");
-
--- CreateIndex
-CREATE INDEX "SyncOutbox_userId_createdAt_idx" ON "SyncOutbox"("userId", "createdAt");
+-- AddForeignKey
+ALTER TABLE `SyncOutbox` ADD CONSTRAINT `SyncOutbox_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 

@@ -1,6 +1,51 @@
-import { useQuery } from "@tanstack/react-query";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import {
+  MoreVertical,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+  X,
+} from "lucide-react";
 import { RecordTable } from "../components/RecordTable";
 import { api, formatCurrency } from "../lib/api";
+
+type Currency = {
+  code: string;
+  name: string;
+};
+
+type UserCurrency = {
+  id: string;
+  currencyCode: string;
+  currency: Currency;
+};
+
+type Category = {
+  id: string;
+  name: string;
+};
+
+type ExpenseCurrencyLine = {
+  id: string;
+  currencyCode: string;
+  isMain: boolean;
+};
+
+type ExpenseTransactionAmount = {
+  id: string;
+  amount: string;
+  currencyCode: string;
+  rateToMain: string;
+};
+
+type ExpenseTransaction = {
+  id: string;
+  mainAmount: string;
+  amounts: ExpenseTransactionAmount[];
+};
 
 type RecordItem = {
   id: string;
@@ -13,80 +58,1210 @@ type RecordItem = {
   amountInvested?: string;
   value?: string;
   currency: string;
+  mainCurrency?: string | null;
+  expenseDate?: string;
+  acquisitionDate?: string | null;
+  valuationDate?: string | null;
+  zakatEligible?: boolean;
+  sourceExpenseId?: string | null;
+  sourceCurrency?: string | null;
+  category?: Category;
+  currencies?: ExpenseCurrencyLine[];
+  transactions?: ExpenseTransaction[];
   status?: string;
+};
+
+type AssetCurrencyValue = {
+  id: string;
+  currency: string;
+  value: string;
+};
+
+type AssetDisplayItem = RecordItem & {
+  groupKey: string;
+  isLinkedAsset: boolean;
+  currencyValues: AssetCurrencyValue[];
+};
+
+type ExpenseSetupState = {
+  name: string;
+  categoryId: string;
+  mainCurrency: string;
+  currencies: string[];
+};
+
+type AssetFormState = {
+  mode: "manual" | "expense";
+  name: string;
+  date: string;
+  value: string;
+  currency: string;
+  zakatEligible: boolean;
+  expenseId: string;
 };
 
 const config = {
   expenses: {
     title: "Expenses",
+    singular: "expense",
     endpoint: "/expenses",
-    empty: "No expenses yet. Add your first expense from the API or connect the form flow.",
+    empty: "No expenses yet. Add your first expense.",
     columns: [
-      { key: "purpose", label: "Purpose" },
-      { key: "amount", label: "Amount", render: (row: RecordItem) => formatCurrency(row.amount ?? 0, row.currency) },
-      { key: "currency", label: "Currency" }
-    ]
+      {
+        key: "name",
+        label: "Name",
+        render: (row: RecordItem) => row.name ?? row.purpose ?? "",
+      },
+      {
+        key: "amount",
+        label: "Total",
+        render: (row: RecordItem) =>
+          formatCurrency(row.amount ?? 0, row.mainCurrency ?? row.currency),
+      },
+      {
+        key: "currency",
+        label: "Currencies",
+        render: (row: RecordItem) => expenseCurrencyCodes(row).join(", "),
+      },
+    ],
   },
   loans: {
     title: "Loans",
+    singular: "loan",
     endpoint: "/loans",
     empty: "No loans yet. Receivables and payables will appear here.",
     columns: [
       { key: "person", label: "Person" },
-      { key: "amount", label: "Amount", render: (row: RecordItem) => formatCurrency(row.amount ?? 0, row.currency) },
-      { key: "status", label: "Status" }
-    ]
+      {
+        key: "amount",
+        label: "Amount",
+        render: (row: RecordItem) =>
+          formatCurrency(row.amount ?? 0, row.currency),
+      },
+      { key: "status", label: "Status" },
+    ],
   },
   investments: {
     title: "Investments",
+    singular: "investment",
     endpoint: "/investments",
-    empty: "No investments yet. Add cost basis, quantity, and NAV to track value.",
+    empty:
+      "No investments yet. Add cost basis, quantity, and NAV to track value.",
     columns: [
       { key: "name", label: "Name" },
       { key: "type", label: "Type" },
-      { key: "amountInvested", label: "Cost", render: (row: RecordItem) => formatCurrency(row.amountInvested ?? 0, row.currency) }
-    ]
+      {
+        key: "amountInvested",
+        label: "Cost",
+        render: (row: RecordItem) =>
+          formatCurrency(row.amountInvested ?? 0, row.currency),
+      },
+    ],
   },
   assets: {
     title: "Assets",
+    singular: "asset",
     endpoint: "/assets",
-    empty: "No assets yet. Cash, gold, property, vehicles, and other assets belong here.",
+    empty:
+      "No assets yet. Cash, gold, property, vehicles, and other assets belong here.",
     columns: [
       { key: "name", label: "Name" },
-      { key: "assetType", label: "Type" },
-      { key: "value", label: "Value", render: (row: RecordItem) => formatCurrency(row.value ?? 0, row.currency) }
-    ]
-  }
+      {
+        key: "valuationDate",
+        label: "Date",
+        render: (row: RecordItem) =>
+          row.valuationDate || row.acquisitionDate
+            ? new Date(
+                row.valuationDate ?? row.acquisitionDate ?? "",
+              ).toLocaleDateString()
+            : "-",
+      },
+      {
+        key: "value",
+        label: "Amount",
+        render: (row: RecordItem) =>
+          formatCurrency(row.value ?? 0, row.currency),
+      },
+      {
+        key: "zakatEligible",
+        label: "Zakatable",
+        render: (row: RecordItem) => (row.zakatEligible ? "Yes" : "No"),
+      },
+    ],
+  },
 };
 
+const todayInputValue = () => new Date().toISOString().slice(0, 10);
+
+function expenseCurrencyCodes(expense: RecordItem) {
+  if (expense.currencies?.length)
+    return expense.currencies.map((line) => line.currencyCode);
+  return [expense.mainCurrency ?? expense.currency];
+}
+
+function expenseCurrencySummary(expense: RecordItem) {
+  return expenseCurrencyCodes(expense).map((currencyCode) => {
+    const lines =
+      expense.transactions?.flatMap((transaction) =>
+        transaction.amounts.filter(
+          (amount) => amount.currencyCode === currencyCode,
+        ),
+      ) ?? [];
+    const total = lines.reduce((sum, line) => sum + Number(line.amount), 0);
+    const rates = lines
+      .map((line) => Number(line.rateToMain))
+      .filter((rate) => Number.isFinite(rate) && rate > 0);
+    const average = rates.length
+      ? rates.reduce((sum, rate) => sum + rate, 0) / rates.length
+      : 0;
+    const high = rates.length ? Math.max(...rates) : 0;
+    const low = rates.length ? Math.min(...rates) : 0;
+    return { currencyCode, total, average, high, low };
+  });
+}
+
+function formatRate(rate: number) {
+  return rate > 0 ? Number(rate.toFixed(6)).toString() : "-";
+}
+
+function formatNumber(value: number | string) {
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 2,
+  }).format(Number(value));
+}
+
+function formatAmountWithCode(value: number | string, currencyCode: string) {
+  return `${formatNumber(value)} ${currencyCode}`;
+}
+
+function expenseAmountSummaries(expense: RecordItem) {
+  const summaries = expenseCurrencySummary(expense).filter(
+    (summary) => summary.total > 0,
+  );
+  if (summaries.length > 0) return summaries;
+  return [
+    {
+      currencyCode: expense.mainCurrency ?? expense.currency,
+      total: Number(expense.amount ?? 0),
+      average: 0,
+      high: 0,
+      low: 0,
+    },
+  ];
+}
+
+function expenseAmountText(expense: RecordItem) {
+  return expenseAmountSummaries(expense)
+    .map((summary) => formatAmountWithCode(summary.total, summary.currencyCode))
+    .join(", ");
+}
+
+function assetDisplayRows(assets: RecordItem[]) {
+  const grouped = new Map<string, AssetDisplayItem>();
+  assets.forEach((asset) => {
+    const isLinkedAsset = Boolean(asset.sourceExpenseId);
+    const groupKey = isLinkedAsset
+      ? `expense:${asset.sourceExpenseId}`
+      : asset.id;
+    const amountLine = {
+      id: asset.id,
+      currency: asset.sourceCurrency ?? asset.currency,
+      value: String(asset.value ?? 0),
+    };
+    const existing = grouped.get(groupKey);
+    if (existing) {
+      existing.currencyValues.push(amountLine);
+      return;
+    }
+    grouped.set(groupKey, {
+      ...asset,
+      groupKey,
+      isLinkedAsset,
+      currency: amountLine.currency,
+      value: amountLine.value,
+      currencyValues: [amountLine],
+    });
+  });
+
+  return [...grouped.values()].map((asset) => ({
+    ...asset,
+    currencyValues: asset.currencyValues.sort((left, right) =>
+      left.currency.localeCompare(right.currency),
+    ),
+  }));
+}
+
+function assetGroupCurrencyTotals(assets: AssetDisplayItem[]) {
+  const totals = new Map<string, number>();
+  assets.forEach((asset) => {
+    asset.currencyValues.forEach((line) => {
+      totals.set(
+        line.currency,
+        (totals.get(line.currency) ?? 0) + Number(line.value),
+      );
+    });
+  });
+  return [...totals.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([currencyCode, total]) => ({ currencyCode, total }));
+}
+
+function assetDate(asset: RecordItem) {
+  const date = asset.valuationDate ?? asset.acquisitionDate;
+  return date ? new Date(date).toLocaleDateString() : "";
+}
+
+function AssetList({
+  assets,
+  emptyLabel,
+  openActionMenu,
+  onToggleActions,
+  onRequestDelete,
+}: {
+  assets: AssetDisplayItem[];
+  emptyLabel: string;
+  openActionMenu: string | null;
+  onToggleActions: (id: string) => void;
+  onRequestDelete: (asset: AssetDisplayItem) => void;
+}) {
+  if (assets.length === 0) {
+    return <div className="empty-state">{emptyLabel}</div>;
+  }
+
+  return (
+    <div className="asset-list">
+      {assets.map((asset) => (
+        <article className="asset-card" key={asset.groupKey}>
+          <div className="asset-card-main">
+            <div className="asset-title-block">
+              <strong>{asset.name ?? "Asset"}</strong>
+              <span>
+                {asset.assetType ?? "Asset"}
+                {assetDate(asset) ? ` | ${assetDate(asset)}` : ""}
+              </span>
+            </div>
+            <div className="asset-value-grid">
+              {asset.currencyValues.map((line) => (
+                <div className="asset-value-cell" key={line.id}>
+                  <span>{line.currency}</span>
+                  <strong>
+                    {formatAmountWithCode(line.value, line.currency)}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="row-menu-wrap">
+            <button
+              className="icon-button"
+              type="button"
+              title="Actions"
+              onClick={() => onToggleActions(asset.groupKey)}
+            >
+              <MoreVertical size={16} />
+            </button>
+            {openActionMenu === asset.groupKey ? (
+              <div className="action-menu">
+                <button type="button" onClick={() => onRequestDelete(asset)}>
+                  <Trash2 size={15} />
+                  Move to trash
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function RecordHeader({
+  title,
+  onAdd,
+  onFilter,
+  addTitle = "Add",
+  showActions = true,
+}: {
+  title: string;
+  onAdd?: () => void;
+  onFilter?: () => void;
+  addTitle?: string;
+  showActions?: boolean;
+}) {
+  return (
+    <header className="page-header records-header">
+      <div className="records-title-block">
+        <p className="eyebrow">Manage</p>
+        <h1>{title}</h1>
+      </div>
+      {showActions ? (
+        <div className="header-icon-actions">
+          <button
+            className="icon-button"
+            type="button"
+            title="Filter"
+            onClick={onFilter}
+          >
+            <SlidersHorizontal size={17} />
+          </button>
+          <button
+            className="icon-button primary-icon"
+            type="button"
+            title={addTitle}
+            onClick={onAdd}
+          >
+            <Plus size={18} />
+          </button>
+        </div>
+      ) : null}
+    </header>
+  );
+}
+
+function SearchRow() {
+  return (
+    <div className="record-filters search-only">
+      <label className="search-box">
+        <Search size={16} />
+        <input aria-label="Search" placeholder="Search" />
+      </label>
+    </div>
+  );
+}
+
+function FilterPanel({
+  currencies,
+  onApply,
+}: {
+  currencies?: string[];
+  onApply: () => void;
+}) {
+  return (
+    <div className="filter-panel">
+      <select aria-label="Currency filter">
+        <option>All currencies</option>
+        {currencies?.map((currencyCode) => (
+          <option key={currencyCode}>{currencyCode}</option>
+        ))}
+      </select>
+      <button
+        className="primary-button compact"
+        type="button"
+        onClick={onApply}
+      >
+        Apply
+      </button>
+    </div>
+  );
+}
+
 export function RecordsPage({ module }: { module: keyof typeof config }) {
+  const queryClient = useQueryClient();
   const page = config[module];
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [showAssetForm, setShowAssetForm] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
+  const [confirmExpense, setConfirmExpense] = useState<RecordItem | null>(null);
+  const [confirmAsset, setConfirmAsset] = useState<AssetDisplayItem | null>(
+    null,
+  );
+  const [undoExpense, setUndoExpense] = useState<RecordItem | null>(null);
+  const deleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [expenseSetup, setExpenseSetup] = useState<ExpenseSetupState>({
+    name: "",
+    categoryId: "",
+    mainCurrency: "",
+    currencies: [],
+  });
+  const [assetForm, setAssetForm] = useState<AssetFormState>({
+    mode: "manual",
+    name: "",
+    date: todayInputValue(),
+    value: "",
+    currency: "",
+    zakatEligible: false,
+    expenseId: "",
+  });
   const { data, error, isLoading } = useQuery({
     queryKey: [module],
-    queryFn: () => api<{ data: RecordItem[] }>(page.endpoint)
+    queryFn: () => api<{ data: RecordItem[] }>(page.endpoint),
   });
+  const { data: categoriesData } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => api<{ data: Category[] }>("/categories"),
+    enabled: module === "expenses",
+  });
+  const { data: userCurrenciesData } = useQuery({
+    queryKey: ["user-currencies"],
+    queryFn: () => api<{ data: UserCurrency[] }>("/user-currencies"),
+    enabled: module === "expenses" || module === "assets",
+  });
+  const {
+    data: assetExpenseData,
+    error: assetExpenseError,
+    isLoading: isLoadingAssetExpenses,
+  } = useQuery({
+    queryKey: ["expenses", "asset-import"],
+    queryFn: () => api<{ data: RecordItem[] }>("/expenses?pageSize=100"),
+    enabled: module === "assets",
+  });
+  const createExpense = useMutation({
+    mutationFn: (payload: Record<string, unknown>) =>
+      api<{ data: RecordItem }>("/expenses", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      setShowExpenseForm(false);
+      setExpenseSetup((current) => ({ ...current, name: "" }));
+    },
+  });
+  const createAsset = useMutation({
+    mutationFn: async (
+      payload: Record<string, unknown> | Record<string, unknown>[],
+    ) => {
+      const payloads = Array.isArray(payload) ? payload : [payload];
+      const results = await Promise.all(
+        payloads.map((item) =>
+          api<{ data: RecordItem }>("/assets", {
+            method: "POST",
+            body: JSON.stringify(item),
+          }),
+        ),
+      );
+      return results[0] ?? { data: {} as RecordItem };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      setShowAssetForm(false);
+      setAssetForm((current) => ({
+        ...current,
+        name: "",
+        date: todayInputValue(),
+        value: "",
+        expenseId: "",
+        zakatEligible: false,
+      }));
+    },
+  });
+  const deleteExpense = useMutation({
+    mutationFn: (expenseId: string) =>
+      api<void>(`/expenses/${expenseId}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["expenses"] }),
+  });
+  const deleteAsset = useMutation({
+    mutationFn: (assetId: string) =>
+      api<void>(`/assets/${assetId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      setConfirmAsset(null);
+      setOpenActionMenu(null);
+    },
+  });
+
+  const rows = data?.data ?? [];
+  const categories = categoriesData?.data ?? [];
+  const userCurrencies = userCurrenciesData?.data ?? [];
+  const assetExpenses = assetExpenseData?.data ?? [];
+
+  useEffect(() => {
+    if (!expenseSetup.categoryId && categories.length > 0) {
+      setExpenseSetup((current) => ({
+        ...current,
+        categoryId: categories[0]!.id,
+      }));
+    }
+  }, [categories, expenseSetup.categoryId]);
+
+  useEffect(() => {
+    if (expenseSetup.currencies.length === 0 && userCurrencies.length > 0) {
+      const code = userCurrencies[0]!.currencyCode;
+      setExpenseSetup((current) => ({
+        ...current,
+        currencies: [code],
+        mainCurrency: code,
+      }));
+    }
+  }, [expenseSetup.currencies.length, userCurrencies]);
+
+  useEffect(() => {
+    if (
+      module === "assets" &&
+      !assetForm.currency &&
+      userCurrencies.length > 0
+    ) {
+      setAssetForm((current) => ({
+        ...current,
+        currency: userCurrencies[0]!.currencyCode,
+      }));
+    }
+  }, [assetForm.currency, module, userCurrencies]);
+
+  useEffect(() => {
+    if (
+      module === "assets" &&
+      assetForm.mode === "expense" &&
+      !assetForm.expenseId &&
+      assetExpenses.length > 0
+    ) {
+      setAssetForm((current) => ({
+        ...current,
+        expenseId: assetExpenses[0]!.id,
+      }));
+    }
+  }, [assetExpenses, assetForm.expenseId, assetForm.mode, module]);
+
+  function updateExpenseSetup<K extends keyof ExpenseSetupState>(
+    key: K,
+    value: ExpenseSetupState[K],
+  ) {
+    setExpenseSetup((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateAssetForm<K extends keyof AssetFormState>(
+    key: K,
+    value: AssetFormState[K],
+  ) {
+    setAssetForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function toggleSetupCurrency(currencyCode: string) {
+    setExpenseSetup((current) => {
+      const currencies = current.currencies.includes(currencyCode)
+        ? current.currencies.filter((code) => code !== currencyCode)
+        : [...current.currencies, currencyCode];
+      return {
+        ...current,
+        currencies,
+        mainCurrency: currencies.includes(current.mainCurrency)
+          ? current.mainCurrency
+          : (currencies[0] ?? ""),
+      };
+    });
+  }
+
+  function submitExpense(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    createExpense.mutate({
+      name: expenseSetup.name,
+      categoryId: expenseSetup.categoryId,
+      mainCurrency: expenseSetup.mainCurrency,
+      currencies: expenseSetup.currencies,
+    });
+  }
+
+  function submitAsset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (assetForm.mode === "expense") {
+      const expense = assetExpenses.find(
+        (item) => item.id === assetForm.expenseId,
+      );
+      if (!expense) return;
+      const date = expense.expenseDate?.slice(0, 10) ?? todayInputValue();
+      const expenseName = expense.name ?? expense.purpose ?? "Imported expense";
+      createAsset.mutate(
+        expenseAmountSummaries(expense).map((summary) => ({
+          name: expenseName,
+          assetType: "Expense import",
+          value: summary.total.toFixed(4),
+          currency: summary.currencyCode,
+          sourceExpenseId: expense.id,
+          sourceCurrency: summary.currencyCode,
+          acquisitionDate: date,
+          valuationDate: date,
+          zakatEligible: assetForm.zakatEligible,
+          zakatPercentage: 100,
+          notes: `Imported from expense: ${expenseName}`,
+        })),
+      );
+      return;
+    }
+
+    createAsset.mutate({
+      name: assetForm.name,
+      assetType: "Other",
+      value: assetForm.value,
+      currency: assetForm.currency,
+      acquisitionDate: assetForm.date,
+      valuationDate: assetForm.date,
+      zakatEligible: assetForm.zakatEligible,
+      zakatPercentage: 100,
+    });
+  }
+
+  function confirmDeleteExpense(expense: RecordItem) {
+    setOpenActionMenu(null);
+    setConfirmExpense(expense);
+  }
+
+  function scheduleDeleteExpense(expense: RecordItem) {
+    setConfirmExpense(null);
+    setUndoExpense(expense);
+    if (deleteTimer.current) clearTimeout(deleteTimer.current);
+    deleteTimer.current = setTimeout(() => {
+      deleteExpense.mutate(expense.id);
+      setUndoExpense(null);
+      deleteTimer.current = null;
+    }, 5000);
+  }
+
+  function undoDeleteExpense() {
+    if (deleteTimer.current) clearTimeout(deleteTimer.current);
+    deleteTimer.current = null;
+    setUndoExpense(null);
+  }
+
+  function requestDeleteAsset(asset: AssetDisplayItem) {
+    setOpenActionMenu(null);
+    setConfirmAsset(asset);
+  }
+
+  if (module === "assets") {
+    const selectedExpense = assetExpenses.find(
+      (item) => item.id === assetForm.expenseId,
+    );
+    const selectedExpenseAmount = selectedExpense
+      ? expenseAmountText(selectedExpense)
+      : "";
+    const assetRows = assetDisplayRows(rows);
+    const assetTotals = assetGroupCurrencyTotals(assetRows);
+
+    return (
+      <section className="page">
+        <RecordHeader
+          title="Assets"
+          addTitle="Add asset"
+          onAdd={() => setShowAssetForm((value) => !value)}
+          onFilter={() => setShowFilters((value) => !value)}
+        />
+        <SearchRow />
+        {showFilters ? (
+          <FilterPanel
+            currencies={userCurrencies.map((item) => item.currencyCode)}
+            onApply={() => setShowFilters(false)}
+          />
+        ) : null}
+        <section className="expense-card asset-total-strip">
+          <div>
+            <p className="eyebrow">Totals</p>
+            <strong>{assetRows.length} asset(s)</strong>
+          </div>
+          <div className="asset-total-list">
+            {assetTotals.length === 0 ? (
+              <span>No asset value yet</span>
+            ) : (
+              assetTotals.map((summary) => (
+                <strong key={summary.currencyCode}>
+                  {formatAmountWithCode(summary.total, summary.currencyCode)}
+                </strong>
+              ))
+            )}
+          </div>
+        </section>
+        {showAssetForm ? (
+          <div
+            className="modal-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add asset"
+          >
+            <form
+              className="modal-panel asset-entry asset-modal"
+              onSubmit={submitAsset}
+            >
+              <div className="modal-header">
+                <div>
+                  <p className="eyebrow">New asset</p>
+                  <h2>Add asset</h2>
+                </div>
+                <button
+                  className="icon-button"
+                  type="button"
+                  title="Close"
+                  onClick={() => setShowAssetForm(false)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div
+                className="segmented asset-source-tabs"
+                role="tablist"
+                aria-label="Asset source"
+              >
+                <button
+                  className={assetForm.mode === "manual" ? "selected" : ""}
+                  type="button"
+                  onClick={() => updateAssetForm("mode", "manual")}
+                >
+                  Manual
+                </button>
+                <button
+                  className={assetForm.mode === "expense" ? "selected" : ""}
+                  type="button"
+                  onClick={() => updateAssetForm("mode", "expense")}
+                >
+                  From expense
+                </button>
+              </div>
+              {assetForm.mode === "manual" ? (
+                <>
+                  <label>
+                    Name
+                    <input
+                      value={assetForm.name}
+                      onChange={(event) =>
+                        updateAssetForm("name", event.target.value)
+                      }
+                      required
+                    />
+                  </label>
+                  <div className="compact-form">
+                    <label>
+                      Date
+                      <input
+                        type="date"
+                        value={assetForm.date}
+                        onChange={(event) =>
+                          updateAssetForm("date", event.target.value)
+                        }
+                        required
+                      />
+                    </label>
+                    <label>
+                      Currency
+                      <select
+                        value={assetForm.currency}
+                        onChange={(event) =>
+                          updateAssetForm("currency", event.target.value)
+                        }
+                        required
+                      >
+                        <option value="">Choose currency</option>
+                        {userCurrencies.map((item) => (
+                          <option key={item.id} value={item.currencyCode}>
+                            {item.currencyCode}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <label>
+                    Amount
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      value={assetForm.value}
+                      onChange={(event) =>
+                        updateAssetForm("value", event.target.value)
+                      }
+                      required
+                    />
+                  </label>
+                </>
+              ) : (
+                <>
+                  <label>
+                    Expense
+                    <select
+                      value={assetForm.expenseId}
+                      onChange={(event) =>
+                        updateAssetForm("expenseId", event.target.value)
+                      }
+                      required
+                    >
+                      <option value="">
+                        {isLoadingAssetExpenses
+                          ? "Loading expenses..."
+                          : assetExpenseError
+                            ? "Could not load expenses"
+                            : "Choose expense"}
+                      </option>
+                      {assetExpenses.map((expense) => (
+                        <option key={expense.id} value={expense.id}>
+                          {expense.name ?? expense.purpose} -{" "}
+                          {expenseAmountText(expense)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedExpense ? (
+                    <div className="asset-import-preview">
+                      <span>
+                        {selectedExpense.name ?? selectedExpense.purpose}
+                      </span>
+                      <strong>{selectedExpenseAmount}</strong>
+                    </div>
+                  ) : assetExpenseError ? (
+                    <div className="form-error">
+                      Could not load expenses for import.
+                    </div>
+                  ) : isLoadingAssetExpenses ? (
+                    <div className="empty-state">Loading expenses...</div>
+                  ) : assetExpenses.length === 0 ? (
+                    <div className="empty-state">
+                      Add an expense first, then import it as an asset.
+                    </div>
+                  ) : (
+                    <div className="empty-state">No expense selected.</div>
+                  )}
+                </>
+              )}
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={assetForm.zakatEligible}
+                  onChange={(event) =>
+                    updateAssetForm("zakatEligible", event.target.checked)
+                  }
+                />
+                Is zakatable
+              </label>
+              {createAsset.error ? (
+                <div className="form-error">{createAsset.error.message}</div>
+              ) : null}
+              <div className="confirm-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => setShowAssetForm(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={
+                    createAsset.isPending ||
+                    (assetForm.mode === "manual" &&
+                      (!assetForm.name ||
+                        !assetForm.date ||
+                        !assetForm.value ||
+                        !assetForm.currency)) ||
+                    (assetForm.mode === "expense" && !assetForm.expenseId)
+                  }
+                >
+                  Save asset
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : null}
+        {error ? (
+          <div className="form-error">Could not load assets.</div>
+        ) : null}
+        {isLoading ? (
+          <div className="empty-state">Loading assets...</div>
+        ) : null}
+        <AssetList
+          assets={assetRows}
+          emptyLabel={page.empty}
+          openActionMenu={openActionMenu}
+          onToggleActions={(id) =>
+            setOpenActionMenu((current) => (current === id ? null : id))
+          }
+          onRequestDelete={requestDeleteAsset}
+        />
+        {confirmAsset ? (
+          <div
+            className="modal-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Move asset to trash"
+          >
+            <section className="modal-panel confirm-panel">
+              <div>
+                <p className="eyebrow">Move to trash</p>
+                <h2>{confirmAsset.name ?? "Asset"}</h2>
+              </div>
+              <p>
+                This asset will move to trash. Linked expense assets move all
+                currency values together.
+              </p>
+              {deleteAsset.error ? (
+                <div className="form-error">{deleteAsset.error.message}</div>
+              ) : null}
+              <div className="confirm-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => setConfirmAsset(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="primary-button danger-button"
+                  type="button"
+                  disabled={deleteAsset.isPending}
+                  onClick={() => deleteAsset.mutate(confirmAsset.id)}
+                >
+                  Move to trash
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+      </section>
+    );
+  }
+
+  if (module !== "expenses") {
+    return (
+      <section className="page">
+        <RecordHeader
+          title={page.title}
+          addTitle={`Add ${page.singular}`}
+          onFilter={() => setShowFilters((value) => !value)}
+        />
+        <SearchRow />
+        {showFilters ? (
+          <FilterPanel onApply={() => setShowFilters(false)} />
+        ) : null}
+        {error ? (
+          <div className="form-error">
+            Could not load {page.title.toLowerCase()}.
+          </div>
+        ) : null}
+        {isLoading ? (
+          <div className="empty-state">
+            Loading {page.title.toLowerCase()}...
+          </div>
+        ) : null}
+        <RecordTable
+          columns={page.columns}
+          rows={rows}
+          emptyLabel={page.empty}
+        />
+      </section>
+    );
+  }
 
   return (
     <section className="page">
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">Manage</p>
-          <h1>{page.title}</h1>
+      <RecordHeader
+        title="Expenses"
+        addTitle="Add expense"
+        onAdd={() => setShowExpenseForm((value) => !value)}
+        onFilter={() => setShowFilters((value) => !value)}
+      />
+      <SearchRow />
+      {showFilters ? (
+        <FilterPanel
+          currencies={userCurrencies.map((item) => item.currencyCode)}
+          onApply={() => setShowFilters(false)}
+        />
+      ) : null}
+      {showExpenseForm ? (
+        <form className="form-card expense-entry" onSubmit={submitExpense}>
+          <div>
+            <p className="eyebrow">New expense</p>
+            <h2>Expense setup</h2>
+          </div>
+          <label>
+            Name
+            <input
+              value={expenseSetup.name}
+              onChange={(event) =>
+                updateExpenseSetup("name", event.target.value)
+              }
+              required
+            />
+          </label>
+          <div className="compact-form">
+            <label>
+              Category
+              <select
+                value={expenseSetup.categoryId}
+                onChange={(event) =>
+                  updateExpenseSetup("categoryId", event.target.value)
+                }
+                required
+              >
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Main currency
+              <select
+                value={expenseSetup.mainCurrency}
+                onChange={(event) =>
+                  updateExpenseSetup("mainCurrency", event.target.value)
+                }
+                required
+              >
+                {expenseSetup.currencies.map((currencyCode) => (
+                  <option key={currencyCode} value={currencyCode}>
+                    {currencyCode}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {userCurrencies.length > 0 ? (
+            <div className="currency-picker">
+              {userCurrencies.map((item) => (
+                <label className="currency-check" key={item.id}>
+                  <input
+                    type="checkbox"
+                    checked={expenseSetup.currencies.includes(
+                      item.currencyCode,
+                    )}
+                    onChange={() => toggleSetupCurrency(item.currencyCode)}
+                  />
+                  <span>{item.currencyCode}</span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              Add currencies in Settings before creating an expense.
+            </div>
+          )}
+          {createExpense.error ? (
+            <div className="form-error">{createExpense.error.message}</div>
+          ) : null}
+          <button
+            className="primary-button"
+            disabled={
+              createExpense.isPending ||
+              !expenseSetup.name ||
+              !expenseSetup.categoryId ||
+              !expenseSetup.mainCurrency ||
+              expenseSetup.currencies.length === 0
+            }
+          >
+            Save expense
+          </button>
+        </form>
+      ) : null}
+      {error ? (
+        <div className="form-error">Could not load expenses.</div>
+      ) : null}
+      {isLoading ? (
+        <div className="empty-state">Loading expenses...</div>
+      ) : null}
+      {rows.length === 0 && !isLoading ? (
+        <div className="empty-state">{page.empty}</div>
+      ) : null}
+      <div className="expense-list">
+        {rows.map((expense) => (
+          <article className="expense-card expense-card-row" key={expense.id}>
+            <Link
+              className="expense-card-header"
+              to={`/expenses/${expense.id}`}
+            >
+              <div>
+                <strong>{expense.name ?? expense.purpose}</strong>
+                <span>
+                  {expense.category?.name ?? "Uncategorized"} |{" "}
+                  {expenseCurrencyCodes(expense).join(", ")}
+                </span>
+              </div>
+              <div className="expense-summary-row">
+                {expenseCurrencySummary(expense).map((summary) => (
+                  <div
+                    className="expense-summary-cell"
+                    key={summary.currencyCode}
+                  >
+                    <span>{summary.currencyCode}</span>
+                    <strong>
+                      {formatCurrency(summary.total, summary.currencyCode)}
+                    </strong>
+                    <div className="rate-stat-list">
+                      <small>Avg {formatRate(summary.average)}</small>
+                      <small>High {formatRate(summary.high)}</small>
+                      <small>Low {formatRate(summary.low)}</small>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="expense-total">
+                <span>{expense.transactions?.length ?? 0} transaction(s)</span>
+                <strong>
+                  {formatCurrency(
+                    expense.amount ?? 0,
+                    expense.mainCurrency ?? expense.currency,
+                  )}
+                </strong>
+              </div>
+            </Link>
+            <div className="row-menu-wrap">
+              <button
+                className="icon-button expense-delete-button"
+                type="button"
+                title="Actions"
+                onClick={() =>
+                  setOpenActionMenu((current) =>
+                    current === expense.id ? null : expense.id,
+                  )
+                }
+              >
+                <MoreVertical size={16} />
+              </button>
+              {openActionMenu === expense.id ? (
+                <div className="action-menu">
+                  <button
+                    type="button"
+                    onClick={() => confirmDeleteExpense(expense)}
+                  >
+                    <Trash2 size={15} />
+                    Delete
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </article>
+        ))}
+      </div>
+      {confirmExpense ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Delete expense"
+        >
+          <section className="modal-panel confirm-panel">
+            <div>
+              <p className="eyebrow">Delete</p>
+              <h2>{confirmExpense.name ?? confirmExpense.purpose}</h2>
+            </div>
+            <p>
+              This expense will be deleted. You will have 5 seconds to undo.
+            </p>
+            <div className="confirm-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setConfirmExpense(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="primary-button danger-button"
+                type="button"
+                onClick={() => scheduleDeleteExpense(confirmExpense)}
+              >
+                Delete
+              </button>
+            </div>
+          </section>
         </div>
-        <div className="filter-bar">
-          <input aria-label="Search" placeholder="Search" />
-          <select aria-label="Currency filter">
-            <option>All currencies</option>
-            <option>USD</option>
-            <option>AED</option>
-            <option>SAR</option>
-          </select>
-          <button className="primary-button compact">Add</button>
+      ) : null}
+      {undoExpense ? (
+        <div className="undo-toast">
+          <span>Deleting {undoExpense.name ?? undoExpense.purpose}</span>
+          <button type="button" onClick={undoDeleteExpense}>
+            Undo
+          </button>
         </div>
-      </header>
-      {error ? <div className="form-error">Could not load {page.title.toLowerCase()}.</div> : null}
-      {isLoading ? <div className="empty-state">Loading {page.title.toLowerCase()}...</div> : null}
-      <RecordTable columns={page.columns} rows={data?.data ?? []} emptyLabel={page.empty} />
+      ) : null}
     </section>
   );
 }

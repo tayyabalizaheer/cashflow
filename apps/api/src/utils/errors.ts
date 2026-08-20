@@ -18,11 +18,20 @@ export const unauthorized = () => new ApiError(401, "Authentication is required"
 
 export function errorHandler(error: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (error instanceof ZodError) {
+    const fieldErrors = error.issues.reduce<Record<string, string[]>>((acc, issue) => {
+      const field = issue.path.join(".") || "form";
+      acc[field] = [...(acc[field] ?? []), issue.message];
+      return acc;
+    }, {});
+
     return res.status(400).json({
       error: {
         code: "VALIDATION_ERROR",
-        message: "The request contains invalid data",
-        details: error.flatten()
+        message: "Please fix the highlighted fields.",
+        details: {
+          fieldErrors,
+          formErrors: fieldErrors.form ?? []
+        }
       }
     });
   }

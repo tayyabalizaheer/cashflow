@@ -4,9 +4,9 @@ import {
   Calculator,
   ChartPie,
   CircleDollarSign,
-  Landmark,
   LogOut,
   Settings,
+  TrendingUp,
   WalletCards
 } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
@@ -17,9 +17,10 @@ const items = [
   { to: "/expenses", label: "Expenses", icon: WalletCards },
   { to: "/loans", label: "Loans", icon: Banknote },
   { to: "/investments", label: "Invest", icon: CircleDollarSign },
+  { to: "/stocks", label: "Stocks", icon: TrendingUp },
   { to: "/assets", label: "Assets", icon: Building2 },
   { to: "/zakat", label: "Zakat", icon: Calculator },
-  { to: "/profile", label: "Profile", icon: Settings }
+  { to: "/settings", label: "Settings", icon: Settings }
 ];
 
 export function Layout() {
@@ -29,7 +30,7 @@ export function Layout() {
     <div className="shell">
       <aside className="sidebar" aria-label="Primary">
         <NavLink to="/" className="brand" aria-label="Cash Flow dashboard">
-          <Landmark size={28} />
+          <img src="/icons/icon-192.png" alt="" />
           <span>Cash Flow</span>
         </NavLink>
         <nav className="nav-list">

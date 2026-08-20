@@ -1,68 +1,32 @@
 import { API_URL } from "./config";
 import { getAccessToken } from "./sessionToken";
+import { listLocalMutations, queueLocalMutation, removeLocalMutation } from "./localSqlite";
+import type { OfflineMutation } from "./localSqlite";
+export type { OfflineMutation } from "./localSqlite";
 
-const dbName = "cash-flow-offline";
-const storeName = "mutation_queue";
-
-export type OfflineMutation = {
-  id: string;
-  path: string;
-  method: string;
-  body?: string;
-  createdAt: string;
-};
-
-function openOfflineDb() {
-  return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(dbName, 1);
-
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(storeName)) {
-        db.createObjectStore(storeName, { keyPath: "id" });
-      }
-    };
-
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function withStore<T>(mode: IDBTransactionMode, callback: (store: IDBObjectStore) => IDBRequest<T>) {
-  const db = await openOfflineDb();
-  return new Promise<T>((resolve, reject) => {
-    const transaction = db.transaction(storeName, mode);
-    const request = callback(transaction.objectStore(storeName));
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-    transaction.oncomplete = () => db.close();
-    transaction.onerror = () => {
-      db.close();
-      reject(transaction.error);
-    };
-  });
-}
+let flushPromise: Promise<{ pushed: number }> | null = null;
 
 export async function queueOfflineMutation(input: Pick<OfflineMutation, "path" | "method" | "body">) {
-  const mutation: OfflineMutation = {
-    id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
-    ...input
-  };
-
-  await withStore("readwrite", (store) => store.put(mutation));
-  return mutation;
+  return queueLocalMutation(input);
 }
 
 export async function listOfflineMutations() {
-  return withStore<OfflineMutation[]>("readonly", (store) => store.getAll());
+  return listLocalMutations();
 }
 
 export async function removeOfflineMutation(id: string) {
-  await withStore("readwrite", (store) => store.delete(id));
+  await removeLocalMutation(id);
 }
 
 export async function flushOfflineMutations() {
+  if (flushPromise) return flushPromise;
+  flushPromise = flushOfflineMutationsOnce().finally(() => {
+    flushPromise = null;
+  });
+  return flushPromise;
+}
+
+async function flushOfflineMutationsOnce() {
   const token = getAccessToken();
   if (!token || !navigator.onLine) return { pushed: 0 };
 

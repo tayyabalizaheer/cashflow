@@ -1,4 +1,21 @@
 services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: cashflow_root
+      MYSQL_DATABASE: cashflow
+      MYSQL_USER: cashflow
+      MYSQL_PASSWORD: cashflow
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pcashflow_root"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   api:
     build:
       context: .
@@ -6,11 +23,16 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: file:/data/cashflow.db
+      DATABASE_HOST: mysql
+      DATABASE_PORT: 3306
+      DATABASE_USERNAME: cashflow
+      DATABASE_PASSWORD: cashflow
+      DATABASE_NAME: cashflow
+    depends_on:
+      mysql:
+        condition: service_healthy
     ports:
       - "4000:4000"
-    volumes:
-      - api-data:/data
 
   web:
     build:
@@ -22,4 +44,4 @@ services:
       - "5173:80"
 
 volumes:
-  api-data:
+  mysql-data:

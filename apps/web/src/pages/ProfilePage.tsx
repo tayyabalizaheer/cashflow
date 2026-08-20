@@ -13,7 +13,7 @@ export function ProfilePage() {
       <header className="page-header">
         <div>
           <p className="eyebrow">Account</p>
-          <h1>Profile and security</h1>
+          <h1>Profile settings</h1>
         </div>
       </header>
       <form className="form-card settings-form">

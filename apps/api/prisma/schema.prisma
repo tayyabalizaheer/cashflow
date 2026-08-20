@@ -3,65 +3,101 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id                    String                   @id @default(uuid())
-  fullName              String
-  email                 String                   @unique
-  passwordHash          String
-  emailVerifiedAt       DateTime?
-  failedLoginCount      Int                      @default(0)
-  lockedUntil           DateTime?
-  termsAcceptedAt       DateTime
-  createdAt             DateTime                 @default(now())
-  updatedAt             DateTime                 @updatedAt
-  deletedAt             DateTime?
-  preferences           UserPreference?
-  refreshSessions       RefreshSession[]
-  verificationTokens    EmailVerificationToken[]
-  passwordResetTokens   PasswordResetToken[]
-  categories            ExpenseCategory[]
-  expenses              Expense[]
-  loans                 Loan[]
-  loanRepayments        LoanRepayment[]
-  investments           Investment[]
-  assets                Asset[]
-  exchangeRates         ExchangeRate[]
-  zakatCalculations     ZakatCalculation[]
-  zakatPayments         ZakatPayment[]
-  auditEvents           AuditEvent[]
-  syncOutbox            SyncOutbox[]
+  id                  String                     @id @default(uuid())
+  fullName            String
+  email               String                     @unique
+  passwordHash        String
+  emailVerifiedAt     DateTime?
+  failedLoginCount    Int                        @default(0)
+  lockedUntil         DateTime?
+  termsAcceptedAt     DateTime
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  deletedAt           DateTime?
+  preferences         UserPreference?
+  refreshSessions     RefreshSession[]
+  verificationTokens  EmailVerificationToken[]
+  passwordResetTokens PasswordResetToken[]
+  userCurrencies      UserCurrency[]
+  categories          ExpenseCategory[]
+  expenses            Expense[]
+  expenseCurrencies   ExpenseCurrency[]
+  expenseTransactions ExpenseTransaction[]
+  expenseAmounts      ExpenseAmount[]
+  transactionAmounts  ExpenseTransactionAmount[]
+  loans               Loan[]
+  loanTransactions    LoanTransaction[]
+  loanRepayments      LoanRepayment[]
+  investments         Investment[]
+  assets              Asset[]
+  exchangeRates       ExchangeRate[]
+  zakatCalculations   ZakatCalculation[]
+  zakatPayments       ZakatPayment[]
+  attachments         Attachment[]
+  auditEvents         AuditEvent[]
+  syncOutbox          SyncOutbox[]
 }
 
 model UserPreference {
-  id           String          @id @default(uuid())
-  userId       String          @unique
-  baseCurrency String          @default("USD")
-  locale       String          @default("en-US")
-  timeZone     String          @default("UTC")
-  theme        String          @default("system")
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  baseCurrency String   @default("USD")
+  locale       String   @default("en-US")
+  timeZone     String   @default("UTC")
+  theme        String   @default("system")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Currency {
+  code               String                     @id
+  name               String
+  symbol             String?
+  decimalPlaces      Int                        @default(2)
+  active             Boolean                    @default(true)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  userCurrencies     UserCurrency[]
+  expenseCurrencies  ExpenseCurrency[]
+  expenseAmounts     ExpenseAmount[]
+  transactionAmounts ExpenseTransactionAmount[]
+}
+
+model UserCurrency {
+  id           String   @id @default(uuid())
+  userId       String
+  currencyCode String
+  active       Boolean  @default(true)
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currency     Currency @relation(fields: [currencyCode], references: [code])
+
+  @@unique([userId, currencyCode])
+  @@index([userId, active])
 }
 
 model RefreshSession {
-  id                 String    @id @default(uuid())
-  userId             String
-  tokenHash          String    @unique
-  familyId           String
-  userAgent          String?
-  ipAddress          String?
-  expiresAt          DateTime
-  revokedAt          DateTime?
-  replacedByTokenId  String?
-  reuseDetectedAt    DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String    @id @default(uuid())
+  userId            String
+  tokenHash         String    @unique
+  familyId          String
+  userAgent         String?
+  ipAddress         String?
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  replacedByTokenId String?
+  reuseDetectedAt   DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
   @@index([familyId])
@@ -94,67 +130,189 @@ model PasswordResetToken {
 }
 
 model ExpenseCategory {
-  id          String    @id @default(uuid())
-  userId      String
-  name        String
-  color       String    @default("#047857")
-  icon        String    @default("circle")
-  active      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  archivedAt  DateTime?
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expenses    Expense[]
+  id         String    @id @default(uuid())
+  userId     String
+  name       String
+  color      String    @default("#047857")
+  icon       String    @default("circle")
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archivedAt DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenses   Expense[]
 
   @@unique([userId, name])
   @@index([userId, active])
 }
 
 model Expense {
-  id            String          @id @default(uuid())
+  id            String               @id @default(uuid())
   userId        String
   categoryId    String
+  name          String?
+  mainCurrency  String?
   purpose       String
-  amount        Decimal
+  amount        Decimal              @db.Decimal(19, 4)
   currency      String
-  expenseDate   DateTime        @default(now())
+  expenseDate   DateTime             @default(now())
   notes         String?
   paymentMethod String?
-  recurring     Boolean         @default(false)
+  recurring     Boolean              @default(false)
   frequency     String?
   receiptName   String?
   receiptUrl    String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
   archivedAt    DateTime?
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category      ExpenseCategory @relation(fields: [categoryId], references: [id])
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category      ExpenseCategory      @relation(fields: [categoryId], references: [id])
+  currencies    ExpenseCurrency[]
+  transactions  ExpenseTransaction[]
+  amounts       ExpenseAmount[]
+  linkedAssets  Asset[]
 
   @@index([userId, expenseDate])
   @@index([userId, currency])
   @@index([userId, categoryId])
 }
 
-model Loan {
-  id            String          @id @default(uuid())
+model ExpenseCurrency {
+  id           String   @id @default(uuid())
+  userId       String
+  expenseId    String
+  currencyCode String
+  isMain       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expense      Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  currency     Currency @relation(fields: [currencyCode], references: [code])
+
+  @@unique([expenseId, currencyCode])
+  @@index([userId, currencyCode])
+}
+
+model ExpenseAmount {
+  id           String   @id @default(uuid())
+  userId       String
+  expenseId    String
+  currencyCode String
+  amount       Decimal  @db.Decimal(19, 4)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expense      Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  currency     Currency @relation(fields: [currencyCode], references: [code])
+
+  @@unique([expenseId, currencyCode])
+  @@index([userId, currencyCode])
+}
+
+model ExpenseTransaction {
+  id              String                     @id @default(uuid())
+  userId          String
+  expenseId       String
+  purpose         String
+  transactionDate DateTime                   @default(now())
+  mainCurrency    String
+  mainAmount      Decimal                    @db.Decimal(19, 4)
+  notes           String?
+  images          Json?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  archivedAt      DateTime?
+  user            User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expense         Expense                    @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  amounts         ExpenseTransactionAmount[]
+
+  @@index([userId, expenseId])
+  @@index([userId, purpose])
+  @@index([userId, transactionDate])
+}
+
+model ExpenseTransactionAmount {
+  id            String             @id @default(uuid())
   userId        String
-  person        String
-  purpose       String
-  amount        Decimal
-  currency      String
-  direction     String
-  loanDate      DateTime        @default(now())
-  dueDate       DateTime?
-  status        String          @default("ACTIVE")
-  notes         String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  archivedAt    DateTime?
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  repayments    LoanRepayment[]
+  transactionId String
+  currencyCode  String
+  amount        Decimal            @db.Decimal(19, 4)
+  rateToMain    Decimal            @db.Decimal(19, 8)
+  mainAmount    Decimal            @db.Decimal(19, 4)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transaction   ExpenseTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  currency      Currency           @relation(fields: [currencyCode], references: [code])
+
+  @@unique([transactionId, currencyCode])
+  @@index([userId, currencyCode])
+}
+
+model Attachment {
+  id         String    @id @default(uuid())
+  userId     String
+  entityType String
+  entityId   String
+  fileName   String?
+  mimeType   String
+  dataBase64 String    @db.LongText
+  sizeBytes  Int
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archivedAt DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, entityType, entityId])
+  @@index([userId, archivedAt])
+}
+
+model Loan {
+  id           String            @id @default(uuid())
+  userId       String
+  shareId      String            @unique @db.VarChar(5)
+  person       String
+  purpose      String            @default("Opening")
+  amount       Decimal           @default(0) @db.Decimal(19, 4)
+  currency     String            @default("USD")
+  direction    String            @default("LENT")
+  loanDate     DateTime          @default(now())
+  dueDate      DateTime?
+  status       String            @default("ACTIVE")
+  notes        String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  archivedAt   DateTime?
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions LoanTransaction[]
+  repayments   LoanRepayment[]
 
   @@index([userId, loanDate])
   @@index([userId, status])
+  @@index([userId, currency])
+  @@index([userId, shareId])
+}
+
+model LoanTransaction {
+  id              String    @id @default(uuid())
+  userId          String
+  loanId          String
+  kind            String
+  purpose         String
+  amount          Decimal   @db.Decimal(19, 4)
+  currency        String
+  transactionDate DateTime  @default(now())
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  archivedAt      DateTime?
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loan            Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loanId])
+  @@index([userId, kind])
+  @@index([userId, purpose])
+  @@index([userId, transactionDate])
   @@index([userId, currency])
 }
 
@@ -162,7 +320,7 @@ model LoanRepayment {
   id          String    @id @default(uuid())
   userId      String
   loanId      String
-  amount      Decimal
+  amount      Decimal   @db.Decimal(19, 4)
   currency    String
   paymentDate DateTime  @default(now())
   notes       String?
@@ -182,16 +340,16 @@ model Investment {
   userId              String
   type                String
   name                String?
-  amountInvested      Decimal
+  amountInvested      Decimal   @db.Decimal(19, 4)
   currency            String
-  quantity            Decimal?
-  nav                 Decimal?
-  currentValue        Decimal?
+  quantity            Decimal?  @db.Decimal(19, 8)
+  nav                 Decimal?  @db.Decimal(19, 8)
+  currentValue        Decimal?  @db.Decimal(19, 4)
   purchaseDate        DateTime?
   latestValuationDate DateTime?
   notes               String?
   zakatEligible       Boolean   @default(false)
-  zakatPercentage     Decimal   @default(100)
+  zakatPercentage     Decimal   @default(100) @db.Decimal(5, 2)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
   archivedAt          DateTime?
@@ -202,142 +360,183 @@ model Investment {
   @@index([userId, purchaseDate])
 }
 
-model Asset {
-  id                  String    @id @default(uuid())
-  userId              String
-  name                String
-  assetType           String    @default("Other")
-  value               Decimal
-  currency            String
-  acquisitionDate     DateTime?
-  valuationDate       DateTime?
-  zakatEligible       Boolean   @default(false)
-  zakatPercentage     Decimal   @default(100)
-  notes               String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  archivedAt          DateTime?
-  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+model Stock {
+  id                   String    @id @default(uuid())
+  fundName             String    @db.VarChar(191)
+  category             String?   @db.VarChar(191)
+  launchDate           DateTime?
+  validityDate         DateTime
+  repurchasePrice      Decimal?  @db.Decimal(19, 6)
+  offerPrice           Decimal?  @db.Decimal(19, 6)
+  navPrice             Decimal?  @db.Decimal(19, 6)
+  managementFee        Decimal?  @db.Decimal(19, 6)
+  trusteeFee           Decimal?  @db.Decimal(19, 6)
+  regulatoryFee        Decimal?  @db.Decimal(19, 6)
+  leviesAndTaxes       Decimal?  @db.Decimal(19, 6)
+  transactionExpenses  Decimal?  @db.Decimal(19, 6)
+  thirdPartyExpenses   Decimal?  @db.Decimal(19, 6)
+  otherExpenses        Decimal?  @db.Decimal(19, 6)
+  terWithLevies        Decimal?  @db.Decimal(19, 6)
+  terWithoutLevies     Decimal?  @db.Decimal(19, 6)
+  mtdReturn            Decimal?  @db.Decimal(19, 6)
+  fytdReturn           Decimal?  @db.Decimal(19, 6)
+  cytdReturn           Decimal?  @db.Decimal(19, 6)
+  fy25Return           Decimal?  @db.Decimal(19, 6)
+  fy24Return           Decimal?  @db.Decimal(19, 6)
+  sinceInceptionReturn Decimal?  @db.Decimal(19, 6)
+  rawValues            Json
+  sourceUrl            String    @db.VarChar(512)
+  scrapedAt            DateTime  @default(now())
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
+  @@unique([fundName, validityDate], map: "stock_fundName_validityDate_key")
+  @@index([validityDate], map: "stock_validityDate_idx")
+  @@index([category], map: "stock_category_idx")
+  @@map("stock")
+}
+
+model Asset {
+  id              String    @id @default(uuid())
+  userId          String
+  name            String
+  assetType       String    @default("Other")
+  value           Decimal   @db.Decimal(19, 4)
+  currency        String
+  sourceExpenseId String?
+  sourceCurrency  String?
+  acquisitionDate DateTime?
+  valuationDate   DateTime?
+  zakatEligible   Boolean   @default(false)
+  zakatPercentage Decimal   @default(100) @db.Decimal(5, 2)
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  archivedAt      DateTime?
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceExpense   Expense?  @relation(fields: [sourceExpenseId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, sourceExpenseId, currency], map: "Asset_userId_sourceExpenseId_currency_key")
   @@index([userId, assetType])
   @@index([userId, currency])
+  @@index([userId, sourceExpenseId])
   @@index([userId, valuationDate])
 }
 
 model ExchangeRate {
-  id           String   @id @default(uuid())
-  userId       String
-  baseCurrency String
+  id            String   @id @default(uuid())
+  userId        String
+  baseCurrency  String
   quoteCurrency String
-  rate         Decimal
-  source       String
-  rateDate     DateTime
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rate          Decimal  @db.Decimal(19, 8)
+  source        String
+  rateDate      DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, baseCurrency, quoteCurrency, rateDate])
   @@index([userId, rateDate])
 }
 
 model ZakatCalculation {
-  id                    String                 @id @default(uuid())
-  userId                String
-  calculationDate       DateTime
-  yearLabel             String
-  method                String                 @default("Configurable standard method")
-  rate                  Decimal                @default(0.025)
-  nisabBasis            String
-  nisabThreshold        Decimal
-  currency              String
-  goldSilverPrice       Decimal?
-  priceSource           String?
-  priceDate             DateTime?
-  totalZakatableWealth  Decimal
-  thresholdMet          Boolean
-  estimatedZakatDue     Decimal
-  breakdown             Json
-  disclaimerAcceptedAt  DateTime?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  archivedAt            DateTime?
-  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items                 ZakatCalculationItem[]
-  payments              ZakatPayment[]
+  id                   String                 @id @default(uuid())
+  userId               String
+  calculationDate      DateTime
+  yearLabel            String
+  method               String                 @default("Configurable standard method")
+  rate                 Decimal                @default(0.025) @db.Decimal(8, 6)
+  nisabBasis           String
+  nisabThreshold       Decimal                @db.Decimal(19, 4)
+  currency             String
+  goldSilverPrice      Decimal?               @db.Decimal(19, 4)
+  priceSource          String?
+  priceDate            DateTime?
+  totalZakatableWealth Decimal                @db.Decimal(19, 4)
+  thresholdMet         Boolean
+  estimatedZakatDue    Decimal                @db.Decimal(19, 4)
+  breakdown            Json
+  disclaimerAcceptedAt DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  archivedAt           DateTime?
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items                ZakatCalculationItem[]
+  payments             ZakatPayment[]
 
   @@index([userId, calculationDate])
   @@index([userId, currency])
 }
 
 model ZakatCalculationItem {
-  id              String           @id @default(uuid())
-  userId          String
-  calculationId   String
-  kind            String
-  sourceEntityId  String?
-  label           String
-  amount          Decimal
-  currency        String
-  included        Boolean          @default(true)
-  eligibilityPct  Decimal          @default(100)
-  notes           String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  calculation     ZakatCalculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  id             String           @id @default(uuid())
+  userId         String
+  calculationId  String
+  kind           String
+  sourceEntityId String?
+  label          String
+  amount         Decimal          @db.Decimal(19, 4)
+  currency       String
+  included       Boolean          @default(true)
+  eligibilityPct Decimal          @default(100) @db.Decimal(5, 2)
+  notes          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  calculation    ZakatCalculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
 
   @@index([userId, calculationId])
   @@index([userId, kind])
 }
 
 model ZakatPayment {
-  id             String           @id @default(uuid())
-  userId         String
-  calculationId  String?
-  amount         Decimal
-  currency       String
-  paymentDate    DateTime
-  recipient      String?
-  notes          String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  archivedAt     DateTime?
-  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  calculation    ZakatCalculation? @relation(fields: [calculationId], references: [id], onDelete: SetNull)
+  id            String            @id @default(uuid())
+  userId        String
+  calculationId String?
+  amount        Decimal           @db.Decimal(19, 4)
+  currency      String
+  paymentDate   DateTime
+  recipient     String?
+  notes         String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  archivedAt    DateTime?
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calculation   ZakatCalculation? @relation(fields: [calculationId], references: [id], onDelete: SetNull)
 
   @@index([userId, paymentDate])
   @@index([userId, currency])
 }
 
 model AuditEvent {
-  id          String   @id @default(uuid())
-  userId      String?
-  action      String
-  entityType  String?
-  entityId    String?
-  ipAddress   String?
-  userAgent   String?
-  metadata    Json?
-  createdAt   DateTime @default(now())
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  entityType String?
+  entityId   String?
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@index([action])
 }
 
 model SyncOutbox {
-  id                String   @id @default(uuid())
-  userId            String
-  clientMutationId  String   @unique
-  entityType        String
-  entityId          String?
-  operation         String
-  payload           Json
-  status            String   @default("PENDING")
-  lastAttemptAt     DateTime?
-  error             String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String    @id @default(uuid())
+  userId           String
+  clientMutationId String    @unique
+  entityType       String
+  entityId         String?
+  operation        String
+  payload          Json
+  status           String    @default("PENDING")
+  lastAttemptAt    DateTime?
+  error            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
   @@index([userId, createdAt])
