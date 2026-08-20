@@ -337,10 +337,14 @@ export async function fetchStockRows() {
 
   if (env.AL_MEEZAN_FUND_PRICE_BROWSER_FALLBACK_ENABLED) {
     try {
+      console.log(
+        `Stock scrape trying browser fallback with ${env.AL_MEEZAN_FUND_PRICE_BROWSER_WAIT_MS}ms wait.`,
+      );
       const content = await fetchTextWithBrowser(SOURCE_URL);
       const rows = parseStockRows(content);
 
       if (rows.length > 0) {
+        console.log(`Stock scrape browser fallback found ${rows.length} rows.`);
         return rows;
       }
 
