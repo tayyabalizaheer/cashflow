@@ -92,6 +92,31 @@ docker compose up --build
 
 The Docker setup exposes the API service on port `4000`; that service also serves the built frontend in production.
 
+## Stock Scraper Source
+
+The stock job tries Al Meezan first and then readable mirrors. Some VPS IPs are blocked for normal server requests even when the page opens in a browser, so the scraper can also use Chrome/Chromium as a browser fallback.
+
+Install Chromium on Ubuntu if needed:
+
+```bash
+sudo apt update
+sudo apt install -y chromium-browser
+```
+
+If your browser command is different, set it in `.env`:
+
+```bash
+AL_MEEZAN_FUND_PRICE_BROWSER_COMMAND=chromium-browser
+```
+
+You can also set one or more comma-separated proxy/source URLs that return the fund-prices HTML or markdown:
+
+```bash
+AL_MEEZAN_FUND_PRICE_SOURCE_URLS=https://your-proxy.example.com/fund-prices
+```
+
+If all sources are blocked but the database already has stock rows, startup keeps the existing stock data instead of failing the app.
+
 ## API Surface
 
 All protected endpoints require `Authorization: Bearer <access-token>`.

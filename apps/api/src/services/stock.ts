@@ -1,22 +1,81 @@
 import { Prisma } from "@prisma/client";
 import * as cheerio from "cheerio";
+import { execFile } from "node:child_process";
+import { access } from "node:fs/promises";
+import path from "node:path";
+import { promisify } from "node:util";
+import { env } from "../config/env.js";
 import { prisma } from "../config/prisma.js";
 
 const SOURCE_URL = "https://www.almeezangroup.com/fund-prices/";
 const SOURCE_URL_HTTP = "http://www.almeezangroup.com/fund-prices/";
 const JINA_READER_PREFIX = "https://r.jina.ai/http://r.jina.ai/http://";
+const execFileAsync = promisify(execFile);
+const browserCommandCandidates = [
+  "google-chrome",
+  "google-chrome-stable",
+  "chromium",
+  "chromium-browser",
+  "microsoft-edge",
+  "msedge",
+  "chrome",
+];
 
-const stockSources = [
-  { label: "Al Meezan direct", url: SOURCE_URL },
-  {
-    label: "Al Meezan readable mirror (https)",
-    url: `${JINA_READER_PREFIX}${SOURCE_URL}`,
-  },
-  {
-    label: "Al Meezan readable mirror (http)",
-    url: `${JINA_READER_PREFIX}${SOURCE_URL_HTTP}`,
-  },
-] as const;
+function configuredStockSources() {
+  return env.AL_MEEZAN_FUND_PRICE_SOURCE_URLS.split(",")
+    .map((url) => url.trim())
+    .filter(Boolean)
+    .map((url, index) => ({
+      label: `Configured stock source ${index + 1}`,
+      url,
+    }));
+}
+
+function stockSources() {
+  return [
+    ...configuredStockSources(),
+    { label: "Al Meezan direct", url: SOURCE_URL },
+    {
+      label: "Al Meezan readable mirror (https)",
+      url: `${JINA_READER_PREFIX}${SOURCE_URL}`,
+    },
+    {
+      label: "Al Meezan readable mirror (http)",
+      url: `${JINA_READER_PREFIX}${SOURCE_URL_HTTP}`,
+    },
+  ];
+}
+
+function browserCommands() {
+  const configured = env.AL_MEEZAN_FUND_PRICE_BROWSER_COMMAND.split(",")
+    .map((command) => command.trim())
+    .filter(Boolean);
+  return [...configured, ...browserCommandCandidates];
+}
+
+async function commandExists(command: string) {
+  if (
+    path.isAbsolute(command) ||
+    command.includes("/") ||
+    command.includes("\\")
+  ) {
+    try {
+      await access(command);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  try {
+    await execFileAsync(process.platform === "win32" ? "where" : "which", [
+      command,
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const headers = [
   "fundName",
@@ -209,10 +268,55 @@ async function fetchText(url: string) {
   return response.text();
 }
 
+async function fetchTextWithBrowser(url: string) {
+  const failures: string[] = [];
+
+  for (const command of browserCommands()) {
+    if (!(await commandExists(command))) {
+      continue;
+    }
+
+    const args = [
+      "--headless=new",
+      "--disable-gpu",
+      "--no-sandbox",
+      "--disable-dev-shm-usage",
+      "--window-size=1365,900",
+      ...(env.AL_MEEZAN_FUND_PRICE_BROWSER_PROFILE_DIR
+        ? [`--user-data-dir=${env.AL_MEEZAN_FUND_PRICE_BROWSER_PROFILE_DIR}`]
+        : []),
+      "--dump-dom",
+      url,
+    ];
+
+    try {
+      const { stdout } = await execFileAsync(command, args, {
+        timeout: 90000,
+        maxBuffer: 15 * 1024 * 1024,
+      });
+
+      if (stdout.trim()) {
+        return stdout;
+      }
+
+      failures.push(`${command}: browser returned empty page`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`${command}: ${message}`);
+    }
+  }
+
+  throw new Error(
+    failures.length
+      ? `Browser fallback failed. ${failures.join(" | ")}`
+      : "Browser fallback failed. No Chrome or Chromium command was found.",
+  );
+}
+
 export async function fetchStockRows() {
   const failures: string[] = [];
 
-  for (const source of stockSources) {
+  for (const source of stockSources()) {
     try {
       const content = await fetchText(source.url);
       const rows = parseStockRows(content);
@@ -227,6 +331,24 @@ export async function fetchStockRows() {
       const message = error instanceof Error ? error.message : String(error);
       failures.push(`${source.label}: ${message}`);
       console.warn(`Stock scrape source failed: ${source.label}. ${message}`);
+    }
+  }
+
+  if (env.AL_MEEZAN_FUND_PRICE_BROWSER_FALLBACK_ENABLED) {
+    try {
+      const content = await fetchTextWithBrowser(SOURCE_URL);
+      const rows = parseStockRows(content);
+
+      if (rows.length > 0) {
+        return rows;
+      }
+
+      failures.push("Browser fallback: no stock rows found");
+      console.warn("Stock scrape browser fallback returned no rows.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`Browser fallback: ${message}`);
+      console.warn(`Stock scrape browser fallback failed. ${message}`);
     }
   }
 
@@ -272,7 +394,20 @@ function toImportRow(row: StockRow): ImportRow {
 }
 
 export async function scrapeAndSaveStocks() {
-  const rows = (await fetchStockRows()).map(toImportRow);
+  let rows: ImportRow[];
+  try {
+    rows = (await fetchStockRows()).map(toImportRow);
+  } catch (error) {
+    const existingRows = await prisma.stock.count();
+    if (existingRows > 0) {
+      console.warn(
+        `Stock scrape could not reach any source; keeping ${existingRows} existing stock rows.`,
+        error,
+      );
+      return 0;
+    }
+    throw error;
+  }
   const scrapedAt = new Date();
 
   for (const row of rows) {

@@ -37,6 +37,13 @@ const envSchema = z.object({
     .transform((value) => value.toLowerCase() === "true"),
   AL_MEEZAN_FUND_PRICE_CRON: z.string().default("0 5 * * *"),
   AL_MEEZAN_FUND_PRICE_TIMEZONE: z.string().default("Asia/Karachi"),
+  AL_MEEZAN_FUND_PRICE_SOURCE_URLS: z.string().default(""),
+  AL_MEEZAN_FUND_PRICE_BROWSER_FALLBACK_ENABLED: z
+    .string()
+    .default("true")
+    .transform((value) => value.toLowerCase() === "true"),
+  AL_MEEZAN_FUND_PRICE_BROWSER_COMMAND: z.string().default(""),
+  AL_MEEZAN_FUND_PRICE_BROWSER_PROFILE_DIR: z.string().default(""),
 });
 
 export const env = envSchema.parse(process.env);
