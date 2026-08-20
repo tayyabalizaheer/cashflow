@@ -1,13 +1,18 @@
 import { RefreshCw, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
+import {
+  appVersionUpdateEvent,
+  currentAppVersion,
+  getStoredLatestAppVersion,
+  rememberCurrentAppVersion,
+  type AppVersionUpdateDetail,
+} from "../lib/appVersion";
 
 type BuildInfo = {
   buildNumber?: string;
   builtAt?: string;
 };
-
-const currentBuildNumber = __APP_BUILD_NUMBER__;
 
 export function AppUpdatePrompt() {
   const [registration, setRegistration] =
@@ -37,6 +42,22 @@ export function AppUpdatePrompt() {
 
   useEffect(() => {
     let cancelled = false;
+    rememberCurrentAppVersion();
+
+    const storedLatestVersion = getStoredLatestAppVersion();
+    if (storedLatestVersion) {
+      setLatestBuildNumber(storedLatestVersion);
+      setBuildUpdateAvailable(true);
+    }
+
+    function handleApiVersionUpdate(event: Event) {
+      const { latestVersion } = (event as CustomEvent<AppVersionUpdateDetail>)
+        .detail;
+      setLatestBuildNumber(latestVersion);
+      setBuildUpdateAvailable(true);
+      setDismissed(false);
+      void registration?.update();
+    }
 
     async function checkForBuildUpdate() {
       if (!navigator.onLine) return;
@@ -53,7 +74,7 @@ export function AppUpdatePrompt() {
         if (
           !cancelled &&
           buildInfo.buildNumber &&
-          buildInfo.buildNumber !== currentBuildNumber
+          buildInfo.buildNumber !== currentAppVersion
         ) {
           setLatestBuildNumber(buildInfo.buildNumber);
           setBuildUpdateAvailable(true);
@@ -72,11 +93,13 @@ export function AppUpdatePrompt() {
     }
 
     void checkForBuildUpdate();
+    window.addEventListener(appVersionUpdateEvent, handleApiVersionUpdate);
     window.addEventListener("focus", checkForBuildUpdate);
     document.addEventListener("visibilitychange", checkWhenVisible);
 
     return () => {
       cancelled = true;
+      window.removeEventListener(appVersionUpdateEvent, handleApiVersionUpdate);
       window.removeEventListener("focus", checkForBuildUpdate);
       document.removeEventListener("visibilitychange", checkWhenVisible);
     };
@@ -92,6 +115,7 @@ export function AppUpdatePrompt() {
       return;
     }
 
+    await registration?.update();
     window.location.reload();
   }
 
@@ -107,7 +131,7 @@ export function AppUpdatePrompt() {
       <div className="app-update-copy">
         <strong id="app-update-title">Update available</strong>
         <span>
-          Build {currentBuildNumber}
+          Build {currentAppVersion}
           {latestBuildNumber ? ` -> ${latestBuildNumber}` : ""} is ready.
         </span>
       </div>
@@ -119,7 +143,7 @@ export function AppUpdatePrompt() {
           disabled={updating}
         >
           <RefreshCw size={17} />
-          <span>{updating ? "Updating" : "Update"}</span>
+          <span>{updating ? "Restarting" : "Update and restart"}</span>
         </button>
         <button
           className="icon-button"

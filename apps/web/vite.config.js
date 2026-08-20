@@ -12,7 +12,9 @@ function getBuildNumber() {
         process.env.GITHUB_RUN_NUMBER ??
         process.env.GITHUB_SHA;
     const value = rawBuildNumber?.trim() ??
-        new Date().toISOString().replace(/\D/g, "").slice(0, 14);
+        (process.env.NODE_ENV === "development"
+            ? "development"
+            : new Date().toISOString().replace(/\D/g, "").slice(0, 14));
     return value.replace(/[^a-zA-Z0-9_.-]/g, "-");
 }
 

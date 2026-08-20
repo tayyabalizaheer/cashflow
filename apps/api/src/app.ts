@@ -19,6 +19,7 @@ import { errorHandler } from "./utils/errors.js";
 import { openApiDocument } from "./openapi.js";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const appVersionHeader = "X-Cash-Flow-Version";
 
 function isAllowedCorsOrigin(origin: string | undefined) {
   if (!origin) {
@@ -62,8 +63,46 @@ function canServeFrontendRoute(req: express.Request) {
   return ["GET", "HEAD"].includes(req.method) && !req.path.startsWith("/api/");
 }
 
+function normalizeVersion(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.replace(/[^a-zA-Z0-9_.-]/g, "-") : undefined;
+}
+
+function readFrontendBuildNumber(frontendDist: string | undefined) {
+  if (!frontendDist) return undefined;
+
+  try {
+    const rawBuildInfo = fs.readFileSync(
+      path.join(frontendDist, "build.json"),
+      "utf8",
+    );
+    const buildInfo = JSON.parse(rawBuildInfo) as { buildNumber?: unknown };
+    return typeof buildInfo.buildNumber === "string"
+      ? normalizeVersion(buildInfo.buildNumber)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function resolveAppVersion(frontendDist: string | undefined) {
+  const configuredVersion =
+    normalizeVersion(env.APP_VERSION) ??
+    normalizeVersion(process.env.VITE_APP_BUILD_NUMBER) ??
+    normalizeVersion(process.env.BUILD_NUMBER) ??
+    normalizeVersion(process.env.GITHUB_RUN_NUMBER) ??
+    normalizeVersion(process.env.GITHUB_SHA);
+
+  if (configuredVersion) return configuredVersion;
+  if (!isProduction) return "development";
+
+  return readFrontendBuildNumber(frontendDist) ?? "0.1.0";
+}
+
 export function createApp() {
   const app = express();
+  const frontendDist = resolveFrontendDist();
+  const appVersion = resolveAppVersion(frontendDist);
   app.disable("x-powered-by");
   app.use(
     helmet({
@@ -89,8 +128,13 @@ export function createApp() {
         callback(null, isAllowedCorsOrigin(origin));
       },
       credentials: true,
+      exposedHeaders: [appVersionHeader],
     }),
   );
+  app.use("/api", (_req, res, next) => {
+    res.setHeader(appVersionHeader, appVersion);
+    next();
+  });
   app.use(compression());
   app.use(express.json({ limit: "512kb" }));
   app.use(cookieParser(env.COOKIE_SECRET));
@@ -113,7 +157,6 @@ export function createApp() {
   app.use("/api/v1", financeRouter);
   app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openApiDocument));
 
-  const frontendDist = resolveFrontendDist();
   if (frontendDist) {
     app.use(
       express.static(frontendDist, {

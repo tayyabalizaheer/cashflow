@@ -22,6 +22,7 @@ const envSchema = z.object({
     (value) => (value === "" ? undefined : value),
     z.string().min(1).optional(),
   ),
+  APP_VERSION: z.string().min(1).optional(),
   JWT_ACCESS_SECRET: z.string().min(32),
   COOKIE_SECRET: z.string().min(32),
   ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(15),

@@ -1,4 +1,5 @@
 import { queueOfflineMutation } from "./offlineQueue";
+import { appVersionHeader, registerApiAppVersion } from "./appVersion";
 import { API_URL } from "./config";
 import { localResponseForPath } from "./localSqlite";
 import { getAccessToken } from "./sessionToken";
@@ -51,6 +52,7 @@ export async function api<T>(path: string, options: ApiRequestOptions = {}): Pro
         ...requestOptions.headers
       }
     });
+    registerApiAppVersion(response.headers.get(appVersionHeader));
   } catch (error) {
     if (canQueue) {
       const queuedMutation = await queueOfflineMutation({
