@@ -90,6 +90,19 @@ const emptyFilters = (): FilterForm => ({
   to: "",
 });
 
+const loanKindOptions = [
+  {
+    value: "CREDIT",
+    label: "Credit",
+    description: "(Given to me)",
+  },
+  {
+    value: "DEBIT",
+    label: "Debit",
+    description: "(Taken From me)",
+  },
+] as const;
+
 function balanceClass(value: string | number) {
   const amount = Number(value);
   if (amount > 0) return "balance-positive";
@@ -179,6 +192,62 @@ function transactionImages(transaction: LoanTransaction) {
   return attachmentImages.length
     ? attachmentImages
     : (transaction.images ?? []);
+}
+
+function compareTransactionsByDateDesc(
+  left: LoanTransaction,
+  right: LoanTransaction,
+) {
+  return (
+    new Date(right.transactionDate).getTime() -
+    new Date(left.transactionDate).getTime()
+  );
+}
+
+function loanKindText(kind: LoanTransaction["kind"]) {
+  return kind === "CREDIT" ? "Given" : "Taken";
+}
+
+function formatCurrencyValueOnly(value: number | string, currency: string) {
+  return formatCurrency(value, currency).replace(currency, "").trim();
+}
+
+function TransactionKindPicker({
+  name,
+  value,
+  onChange,
+}: {
+  name: string;
+  value: TransactionForm["kind"];
+  onChange: (value: TransactionForm["kind"]) => void;
+}) {
+  return (
+    <fieldset className="loan-kind-picker">
+      <legend>Type</legend>
+      <div className="loan-kind-options">
+        {loanKindOptions.map((option) => (
+          <label
+            className={`loan-kind-option ${option.value.toLowerCase()}${
+              option.value === value ? " selected" : ""
+            }`}
+            key={option.value}
+          >
+            <input
+              type="radio"
+              name={name}
+              value={option.value}
+              checked={option.value === value}
+              onChange={() => onChange(option.value)}
+            />
+            <span>
+              <strong>{option.label}</strong>
+              <small>{option.description}</small>
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
 }
 
 export function LoanDetailPage() {
@@ -371,8 +440,9 @@ export function LoanDetailPage() {
     );
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
-  const visibleTransactions = (loan.transactions ?? []).filter(
-    (transaction) => {
+  const visibleTransactions = [...(loan.transactions ?? [])]
+    .sort(compareTransactionsByDateDesc)
+    .filter((transaction) => {
       const transactionDay = transaction.transactionDate.slice(0, 10);
       const matchesSearch =
         !normalizedSearch ||
@@ -391,8 +461,7 @@ export function LoanDetailPage() {
         matchesFrom &&
         matchesTo
       );
-    },
-  );
+    });
 
   return (
     <section className="page">
@@ -469,7 +538,7 @@ export function LoanDetailPage() {
             <div className="loan-balance-item" key={balance.currency}>
               <span>{balance.currency}</span>
               <strong className={balanceClass(balance.balance)}>
-                {formatCurrency(balance.balance, balance.currency)}
+                {formatCurrencyValueOnly(balance.balance, balance.currency)}
               </strong>
             </div>
           ))}
@@ -508,7 +577,7 @@ export function LoanDetailPage() {
               <span
                 className={`loan-type-text ${transaction.kind.toLowerCase()}`}
               >
-                {transaction.kind === "CREDIT" ? "Credit" : "Debit"}
+                {loanKindText(transaction.kind)}
               </span>
               {isPublicView ? null : (
                 <div className="transaction-actions">
@@ -726,21 +795,16 @@ export function LoanDetailPage() {
                 <option key={purpose} value={purpose} />
               ))}
             </datalist>
-            <label>
-              Type
-              <select
-                value={form.kind}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    kind: event.target.value as TransactionForm["kind"],
-                  }))
-                }
-              >
-                <option value="CREDIT">Credit</option>
-                <option value="DEBIT">Debit</option>
-              </select>
-            </label>
+            <TransactionKindPicker
+              name="loan-transaction-kind"
+              value={form.kind}
+              onChange={(kind) =>
+                setForm((current) => ({
+                  ...current,
+                  kind,
+                }))
+              }
+            />
             <label>
               Purpose
               <input
@@ -889,21 +953,16 @@ export function LoanDetailPage() {
                 <option key={purpose} value={purpose} />
               ))}
             </datalist>
-            <label>
-              Type
-              <select
-                value={editForm.kind}
-                onChange={(event) =>
-                  setEditForm((current) => ({
-                    ...current,
-                    kind: event.target.value as TransactionForm["kind"],
-                  }))
-                }
-              >
-                <option value="CREDIT">Credit</option>
-                <option value="DEBIT">Debit</option>
-              </select>
-            </label>
+            <TransactionKindPicker
+              name="loan-transaction-kind-edit"
+              value={editForm.kind}
+              onChange={(kind) =>
+                setEditForm((current) => ({
+                  ...current,
+                  kind,
+                }))
+              }
+            />
             <label>
               Purpose
               <input

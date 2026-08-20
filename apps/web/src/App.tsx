@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./components/AuthProvider";
+import { AppUpdatePrompt } from "./components/AppUpdatePrompt";
 import { Layout } from "./components/Layout";
 import { AuthPage } from "./pages/AuthPage";
 import { CurrencySettingsPage } from "./pages/CurrencySettingsPage";
@@ -28,6 +29,7 @@ function Protected() {
 export default function App() {
   return (
     <AuthProvider>
+      <AppUpdatePrompt />
       <Routes>
         <Route path="/login" element={<AuthPage />} />
         <Route path="/offline" element={<OfflinePage />} />

@@ -120,7 +120,7 @@ export function createApp() {
         index: false,
         setHeaders(res, filePath) {
           const fileName = path.basename(filePath);
-          if (["index.html", "sw.js"].includes(fileName)) {
+          if (["index.html", "sw.js", "build.json"].includes(fileName)) {
             res.setHeader("Cache-Control", "no-cache");
             return;
           }

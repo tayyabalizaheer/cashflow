@@ -219,6 +219,16 @@ function transactionAmountLines(
   });
 }
 
+function compareTransactionsByDateDesc(
+  left: ExpenseTransaction,
+  right: ExpenseTransaction,
+) {
+  return (
+    new Date(right.transactionDate).getTime() -
+    new Date(left.transactionDate).getTime()
+  );
+}
+
 export function ExpenseDetailPage() {
   const { expenseId } = useParams();
   const queryClient = useQueryClient();
@@ -481,7 +491,9 @@ export function ExpenseDetailPage() {
 
   const currencyCodes = expenseCurrencyCodes(expense);
   const normalizedSearch = searchTerm.trim().toLowerCase();
-  const transactions = expense.transactions ?? [];
+  const transactions = [...(expense.transactions ?? [])].sort(
+    compareTransactionsByDateDesc,
+  );
   const purposeOptions = [
     ...new Set(transactions.map((transaction) => transaction.purpose)),
   ].sort((left, right) => left.localeCompare(right));
