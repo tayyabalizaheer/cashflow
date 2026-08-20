@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { api, formatCurrency } from "../lib/api";
+import { useCloseActionMenu } from "../lib/useCloseActionMenu";
 
 type Category = {
   id: string;
@@ -247,6 +248,7 @@ export function ExpenseDetailPage() {
   const [undoTransaction, setUndoTransaction] =
     useState<ExpenseTransaction | null>(null);
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
+  useCloseActionMenu(Boolean(openActionMenu), () => setOpenActionMenu(null));
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");

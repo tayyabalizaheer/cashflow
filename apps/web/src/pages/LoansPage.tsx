@@ -1,8 +1,9 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Copy, MoreVertical, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Copy, MoreVertical, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { api, formatCurrency } from "../lib/api";
+import { useCloseActionMenu } from "../lib/useCloseActionMenu";
 
 type LoanBalance = {
   currency: string;
@@ -36,6 +37,7 @@ export function LoansPage() {
   const [loanToDelete, setLoanToDelete] = useState<Loan | null>(null);
   const [person, setPerson] = useState("");
   const [editPerson, setEditPerson] = useState("");
+  useCloseActionMenu(Boolean(activeMenuId), () => setActiveMenuId(null));
   const { data, error, isLoading } = useQuery({
     queryKey: ["loans"],
     queryFn: () => api<{ data: Loan[] }>("/loans")
@@ -173,16 +175,23 @@ export function LoansPage() {
 
       {showAdd ? (
         <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Add loan person">
-          <form className="modal-panel confirm-panel" onSubmit={submitLoan}>
-            <div>
-              <p className="eyebrow">New loan</p>
-              <h2>Person</h2>
+          <form className="modal-panel form-modal confirm-panel" onSubmit={submitLoan}>
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">New loan</p>
+                <h2>Person</h2>
+              </div>
+              <button className="icon-button" type="button" title="Close" onClick={() => setShowAdd(false)}>
+                <X size={16} />
+              </button>
             </div>
-            <label>
-              Person name
-              <input value={person} onChange={(event) => setPerson(event.target.value)} required />
-            </label>
-            {createLoan.error ? <div className="form-error">{createLoan.error.message}</div> : null}
+            <div className="modal-form-body">
+              <label>
+                Person name
+                <input value={person} onChange={(event) => setPerson(event.target.value)} required />
+              </label>
+              {createLoan.error ? <div className="form-error">{createLoan.error.message}</div> : null}
+            </div>
             <div className="confirm-actions">
               <button className="secondary-button" type="button" onClick={() => setShowAdd(false)}>
                 Cancel
@@ -197,16 +206,23 @@ export function LoansPage() {
 
       {loanToEdit ? (
         <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Edit loan name">
-          <form className="modal-panel confirm-panel" onSubmit={submitEditLoan}>
-            <div>
-              <p className="eyebrow">Edit</p>
-              <h2>Loan name</h2>
+          <form className="modal-panel form-modal confirm-panel" onSubmit={submitEditLoan}>
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">Edit</p>
+                <h2>Loan name</h2>
+              </div>
+              <button className="icon-button" type="button" title="Close" onClick={() => setLoanToEdit(null)}>
+                <X size={16} />
+              </button>
             </div>
-            <label>
-              Person name
-              <input value={editPerson} onChange={(event) => setEditPerson(event.target.value)} required />
-            </label>
-            {updateLoan.error ? <div className="form-error">{updateLoan.error.message}</div> : null}
+            <div className="modal-form-body">
+              <label>
+                Person name
+                <input value={editPerson} onChange={(event) => setEditPerson(event.target.value)} required />
+              </label>
+              {updateLoan.error ? <div className="form-error">{updateLoan.error.message}</div> : null}
+            </div>
             <div className="confirm-actions">
               <button className="secondary-button" type="button" onClick={() => setLoanToEdit(null)}>
                 Cancel

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { RecordTable } from "../components/RecordTable";
 import { api, formatCurrency } from "../lib/api";
+import { useCloseActionMenu } from "../lib/useCloseActionMenu";
 
 type Currency = {
   code: string;
@@ -98,6 +99,18 @@ type AssetFormState = {
   currency: string;
   zakatEligible: boolean;
   expenseId: string;
+};
+
+type InvestmentFormState = {
+  type: string;
+  name: string;
+  amountInvested: string;
+  currency: string;
+  quantity: string;
+  nav: string;
+  currentValue: string;
+  purchaseDate: string;
+  zakatEligible: boolean;
 };
 
 const config = {
@@ -460,8 +473,10 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
   const page = config[module];
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [showAssetForm, setShowAssetForm] = useState(false);
+  const [showInvestmentForm, setShowInvestmentForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
+  useCloseActionMenu(Boolean(openActionMenu), () => setOpenActionMenu(null));
   const [confirmExpense, setConfirmExpense] = useState<RecordItem | null>(null);
   const [confirmAsset, setConfirmAsset] = useState<AssetDisplayItem | null>(
     null,
@@ -483,6 +498,17 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     zakatEligible: false,
     expenseId: "",
   });
+  const [investmentForm, setInvestmentForm] = useState<InvestmentFormState>({
+    type: "",
+    name: "",
+    amountInvested: "",
+    currency: "",
+    quantity: "",
+    nav: "",
+    currentValue: "",
+    purchaseDate: todayInputValue(),
+    zakatEligible: false,
+  });
   const { data, error, isLoading } = useQuery({
     queryKey: [module],
     queryFn: () => api<{ data: RecordItem[] }>(page.endpoint),
@@ -495,7 +521,8 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
   const { data: userCurrenciesData } = useQuery({
     queryKey: ["user-currencies"],
     queryFn: () => api<{ data: UserCurrency[] }>("/user-currencies"),
-    enabled: module === "expenses" || module === "assets",
+    enabled:
+      module === "expenses" || module === "assets" || module === "investments",
   });
   const {
     data: assetExpenseData,
@@ -543,6 +570,29 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
         date: todayInputValue(),
         value: "",
         expenseId: "",
+        zakatEligible: false,
+      }));
+    },
+  });
+  const createInvestment = useMutation({
+    mutationFn: (payload: Record<string, unknown>) =>
+      api<{ data: RecordItem }>("/investments", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["investments"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      setShowInvestmentForm(false);
+      setInvestmentForm((current) => ({
+        ...current,
+        type: "",
+        name: "",
+        amountInvested: "",
+        quantity: "",
+        nav: "",
+        currentValue: "",
+        purchaseDate: todayInputValue(),
         zakatEligible: false,
       }));
     },
@@ -603,6 +653,19 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
 
   useEffect(() => {
     if (
+      module === "investments" &&
+      !investmentForm.currency &&
+      userCurrencies.length > 0
+    ) {
+      setInvestmentForm((current) => ({
+        ...current,
+        currency: userCurrencies[0]!.currencyCode,
+      }));
+    }
+  }, [investmentForm.currency, module, userCurrencies]);
+
+  useEffect(() => {
+    if (
       module === "assets" &&
       assetForm.mode === "expense" &&
       !assetForm.expenseId &&
@@ -627,6 +690,13 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     value: AssetFormState[K],
   ) {
     setAssetForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateInvestmentForm<K extends keyof InvestmentFormState>(
+    key: K,
+    value: InvestmentFormState[K],
+  ) {
+    setInvestmentForm((current) => ({ ...current, [key]: value }));
   }
 
   function toggleSetupCurrency(currencyCode: string) {
@@ -693,6 +763,23 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     });
   }
 
+  function submitInvestment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    createInvestment.mutate({
+      type: investmentForm.type,
+      name: investmentForm.name || undefined,
+      amountInvested: investmentForm.amountInvested,
+      currency: investmentForm.currency,
+      quantity: investmentForm.quantity || undefined,
+      nav: investmentForm.nav || undefined,
+      currentValue: investmentForm.currentValue || undefined,
+      purchaseDate: investmentForm.purchaseDate || undefined,
+      latestValuationDate: investmentForm.purchaseDate || undefined,
+      zakatEligible: investmentForm.zakatEligible,
+      zakatPercentage: 100,
+    });
+  }
+
   function confirmDeleteExpense(expense: RecordItem) {
     setOpenActionMenu(null);
     setConfirmExpense(expense);
@@ -735,7 +822,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
         <RecordHeader
           title="Assets"
           addTitle="Add asset"
-          onAdd={() => setShowAssetForm((value) => !value)}
+          onAdd={() => setShowAssetForm(true)}
           onFilter={() => setShowFilters((value) => !value)}
         />
         <SearchRow />
@@ -770,7 +857,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
             aria-label="Add asset"
           >
             <form
-              className="modal-panel asset-entry asset-modal"
+              className="modal-panel form-modal asset-entry asset-modal"
               onSubmit={submitAsset}
             >
               <div className="modal-header">
@@ -787,143 +874,145 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                   <X size={16} />
                 </button>
               </div>
-              <div
-                className="segmented asset-source-tabs"
-                role="tablist"
-                aria-label="Asset source"
-              >
-                <button
-                  className={assetForm.mode === "manual" ? "selected" : ""}
-                  type="button"
-                  onClick={() => updateAssetForm("mode", "manual")}
+              <div className="modal-form-body">
+                <div
+                  className="segmented asset-source-tabs"
+                  role="tablist"
+                  aria-label="Asset source"
                 >
-                  Manual
-                </button>
-                <button
-                  className={assetForm.mode === "expense" ? "selected" : ""}
-                  type="button"
-                  onClick={() => updateAssetForm("mode", "expense")}
-                >
-                  From expense
-                </button>
-              </div>
-              {assetForm.mode === "manual" ? (
-                <>
-                  <label>
-                    Name
-                    <input
-                      value={assetForm.name}
-                      onChange={(event) =>
-                        updateAssetForm("name", event.target.value)
-                      }
-                      required
-                    />
-                  </label>
-                  <div className="compact-form">
+                  <button
+                    className={assetForm.mode === "manual" ? "selected" : ""}
+                    type="button"
+                    onClick={() => updateAssetForm("mode", "manual")}
+                  >
+                    Manual
+                  </button>
+                  <button
+                    className={assetForm.mode === "expense" ? "selected" : ""}
+                    type="button"
+                    onClick={() => updateAssetForm("mode", "expense")}
+                  >
+                    From expense
+                  </button>
+                </div>
+                {assetForm.mode === "manual" ? (
+                  <>
                     <label>
-                      Date
+                      Name
                       <input
-                        type="date"
-                        value={assetForm.date}
+                        value={assetForm.name}
                         onChange={(event) =>
-                          updateAssetForm("date", event.target.value)
+                          updateAssetForm("name", event.target.value)
                         }
                         required
                       />
                     </label>
+                    <div className="compact-form">
+                      <label>
+                        Date
+                        <input
+                          type="date"
+                          value={assetForm.date}
+                          onChange={(event) =>
+                            updateAssetForm("date", event.target.value)
+                          }
+                          required
+                        />
+                      </label>
+                      <label>
+                        Currency
+                        <select
+                          value={assetForm.currency}
+                          onChange={(event) =>
+                            updateAssetForm("currency", event.target.value)
+                          }
+                          required
+                        >
+                          <option value="">Choose currency</option>
+                          {userCurrencies.map((item) => (
+                            <option key={item.id} value={item.currencyCode}>
+                              {item.currencyCode}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
                     <label>
-                      Currency
-                      <select
-                        value={assetForm.currency}
+                      Amount
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.0001"
+                        value={assetForm.value}
                         onChange={(event) =>
-                          updateAssetForm("currency", event.target.value)
+                          updateAssetForm("value", event.target.value)
+                        }
+                        required
+                      />
+                    </label>
+                  </>
+                ) : (
+                  <>
+                    <label>
+                      Expense
+                      <select
+                        value={assetForm.expenseId}
+                        onChange={(event) =>
+                          updateAssetForm("expenseId", event.target.value)
                         }
                         required
                       >
-                        <option value="">Choose currency</option>
-                        {userCurrencies.map((item) => (
-                          <option key={item.id} value={item.currencyCode}>
-                            {item.currencyCode}
+                        <option value="">
+                          {isLoadingAssetExpenses
+                            ? "Loading expenses..."
+                            : assetExpenseError
+                              ? "Could not load expenses"
+                              : "Choose expense"}
+                        </option>
+                        {assetExpenses.map((expense) => (
+                          <option key={expense.id} value={expense.id}>
+                            {expense.name ?? expense.purpose} -{" "}
+                            {expenseAmountText(expense)}
                           </option>
                         ))}
                       </select>
                     </label>
-                  </div>
-                  <label>
-                    Amount
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.0001"
-                      value={assetForm.value}
-                      onChange={(event) =>
-                        updateAssetForm("value", event.target.value)
-                      }
-                      required
-                    />
-                  </label>
-                </>
-              ) : (
-                <>
-                  <label>
-                    Expense
-                    <select
-                      value={assetForm.expenseId}
-                      onChange={(event) =>
-                        updateAssetForm("expenseId", event.target.value)
-                      }
-                      required
-                    >
-                      <option value="">
-                        {isLoadingAssetExpenses
-                          ? "Loading expenses..."
-                          : assetExpenseError
-                            ? "Could not load expenses"
-                            : "Choose expense"}
-                      </option>
-                      {assetExpenses.map((expense) => (
-                        <option key={expense.id} value={expense.id}>
-                          {expense.name ?? expense.purpose} -{" "}
-                          {expenseAmountText(expense)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {selectedExpense ? (
-                    <div className="asset-import-preview">
-                      <span>
-                        {selectedExpense.name ?? selectedExpense.purpose}
-                      </span>
-                      <strong>{selectedExpenseAmount}</strong>
-                    </div>
-                  ) : assetExpenseError ? (
-                    <div className="form-error">
-                      Could not load expenses for import.
-                    </div>
-                  ) : isLoadingAssetExpenses ? (
-                    <div className="empty-state">Loading expenses...</div>
-                  ) : assetExpenses.length === 0 ? (
-                    <div className="empty-state">
-                      Add an expense first, then import it as an asset.
-                    </div>
-                  ) : (
-                    <div className="empty-state">No expense selected.</div>
-                  )}
-                </>
-              )}
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={assetForm.zakatEligible}
-                  onChange={(event) =>
-                    updateAssetForm("zakatEligible", event.target.checked)
-                  }
-                />
-                Is zakatable
-              </label>
-              {createAsset.error ? (
-                <div className="form-error">{createAsset.error.message}</div>
-              ) : null}
+                    {selectedExpense ? (
+                      <div className="asset-import-preview">
+                        <span>
+                          {selectedExpense.name ?? selectedExpense.purpose}
+                        </span>
+                        <strong>{selectedExpenseAmount}</strong>
+                      </div>
+                    ) : assetExpenseError ? (
+                      <div className="form-error">
+                        Could not load expenses for import.
+                      </div>
+                    ) : isLoadingAssetExpenses ? (
+                      <div className="empty-state">Loading expenses...</div>
+                    ) : assetExpenses.length === 0 ? (
+                      <div className="empty-state">
+                        Add an expense first, then import it as an asset.
+                      </div>
+                    ) : (
+                      <div className="empty-state">No expense selected.</div>
+                    )}
+                  </>
+                )}
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={assetForm.zakatEligible}
+                    onChange={(event) =>
+                      updateAssetForm("zakatEligible", event.target.checked)
+                    }
+                  />
+                  Is zakatable
+                </label>
+                {createAsset.error ? (
+                  <div className="form-error">{createAsset.error.message}</div>
+                ) : null}
+              </div>
               <div className="confirm-actions">
                 <button
                   className="secondary-button"
@@ -1008,6 +1097,212 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     );
   }
 
+  if (module === "investments") {
+    return (
+      <section className="page">
+        <RecordHeader
+          title="Investments"
+          addTitle="Add investment"
+          onAdd={() => setShowInvestmentForm(true)}
+          onFilter={() => setShowFilters((value) => !value)}
+        />
+        <SearchRow />
+        {showFilters ? (
+          <FilterPanel
+            currencies={userCurrencies.map((item) => item.currencyCode)}
+            onApply={() => setShowFilters(false)}
+          />
+        ) : null}
+        {showInvestmentForm ? (
+          <div
+            className="modal-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add investment"
+          >
+            <form
+              className="modal-panel form-modal"
+              onSubmit={submitInvestment}
+            >
+              <div className="modal-header">
+                <div>
+                  <p className="eyebrow">New investment</p>
+                  <h2>Add investment</h2>
+                </div>
+                <button
+                  className="icon-button"
+                  type="button"
+                  title="Close"
+                  onClick={() => setShowInvestmentForm(false)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="modal-form-body">
+                <div className="compact-form">
+                  <label>
+                    Type
+                    <input
+                      value={investmentForm.type}
+                      onChange={(event) =>
+                        updateInvestmentForm("type", event.target.value)
+                      }
+                      placeholder="Stock, fund, gold..."
+                      required
+                    />
+                  </label>
+                  <label>
+                    Name
+                    <input
+                      value={investmentForm.name}
+                      onChange={(event) =>
+                        updateInvestmentForm("name", event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="compact-form">
+                  <label>
+                    Cost
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      value={investmentForm.amountInvested}
+                      onChange={(event) =>
+                        updateInvestmentForm(
+                          "amountInvested",
+                          event.target.value,
+                        )
+                      }
+                      required
+                    />
+                  </label>
+                  <label>
+                    Currency
+                    <select
+                      value={investmentForm.currency}
+                      onChange={(event) =>
+                        updateInvestmentForm("currency", event.target.value)
+                      }
+                      required
+                    >
+                      <option value="">Choose currency</option>
+                      {userCurrencies.map((item) => (
+                        <option key={item.id} value={item.currencyCode}>
+                          {item.currencyCode}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="compact-form">
+                  <label>
+                    Quantity
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.00000001"
+                      value={investmentForm.quantity}
+                      onChange={(event) =>
+                        updateInvestmentForm("quantity", event.target.value)
+                      }
+                    />
+                  </label>
+                  <label>
+                    NAV
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.00000001"
+                      value={investmentForm.nav}
+                      onChange={(event) =>
+                        updateInvestmentForm("nav", event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="compact-form">
+                  <label>
+                    Current value
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      value={investmentForm.currentValue}
+                      onChange={(event) =>
+                        updateInvestmentForm("currentValue", event.target.value)
+                      }
+                    />
+                  </label>
+                  <label>
+                    Date
+                    <input
+                      type="date"
+                      value={investmentForm.purchaseDate}
+                      onChange={(event) =>
+                        updateInvestmentForm("purchaseDate", event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={investmentForm.zakatEligible}
+                    onChange={(event) =>
+                      updateInvestmentForm(
+                        "zakatEligible",
+                        event.target.checked,
+                      )
+                    }
+                  />
+                  Is zakatable
+                </label>
+                {createInvestment.error ? (
+                  <div className="form-error">
+                    {createInvestment.error.message}
+                  </div>
+                ) : null}
+              </div>
+              <div className="confirm-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => setShowInvestmentForm(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={
+                    createInvestment.isPending ||
+                    !investmentForm.type.trim() ||
+                    !investmentForm.amountInvested ||
+                    !investmentForm.currency
+                  }
+                >
+                  Save investment
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : null}
+        {error ? (
+          <div className="form-error">Could not load investments.</div>
+        ) : null}
+        {isLoading ? (
+          <div className="empty-state">Loading investments...</div>
+        ) : null}
+        <RecordTable
+          columns={page.columns}
+          rows={rows}
+          emptyLabel={page.empty}
+        />
+      </section>
+    );
+  }
+
   if (module !== "expenses") {
     return (
       <section className="page">
@@ -1044,7 +1339,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       <RecordHeader
         title="Expenses"
         addTitle="Add expense"
-        onAdd={() => setShowExpenseForm((value) => !value)}
+        onAdd={() => setShowExpenseForm(true)}
         onFilter={() => setShowFilters((value) => !value)}
       />
       <SearchRow />
@@ -1055,91 +1350,122 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
         />
       ) : null}
       {showExpenseForm ? (
-        <form className="form-card expense-entry" onSubmit={submitExpense}>
-          <div>
-            <p className="eyebrow">New expense</p>
-            <h2>Expense setup</h2>
-          </div>
-          <label>
-            Name
-            <input
-              value={expenseSetup.name}
-              onChange={(event) =>
-                updateExpenseSetup("name", event.target.value)
-              }
-              required
-            />
-          </label>
-          <div className="compact-form">
-            <label>
-              Category
-              <select
-                value={expenseSetup.categoryId}
-                onChange={(event) =>
-                  updateExpenseSetup("categoryId", event.target.value)
-                }
-                required
-              >
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Main currency
-              <select
-                value={expenseSetup.mainCurrency}
-                onChange={(event) =>
-                  updateExpenseSetup("mainCurrency", event.target.value)
-                }
-                required
-              >
-                {expenseSetup.currencies.map((currencyCode) => (
-                  <option key={currencyCode} value={currencyCode}>
-                    {currencyCode}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {userCurrencies.length > 0 ? (
-            <div className="currency-picker">
-              {userCurrencies.map((item) => (
-                <label className="currency-check" key={item.id}>
-                  <input
-                    type="checkbox"
-                    checked={expenseSetup.currencies.includes(
-                      item.currencyCode,
-                    )}
-                    onChange={() => toggleSetupCurrency(item.currencyCode)}
-                  />
-                  <span>{item.currencyCode}</span>
-                </label>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state">
-              Add currencies in Settings before creating an expense.
-            </div>
-          )}
-          {createExpense.error ? (
-            <div className="form-error">{createExpense.error.message}</div>
-          ) : null}
-          <button
-            className="primary-button"
-            disabled={
-              createExpense.isPending ||
-              !expenseSetup.name ||
-              !expenseSetup.categoryId ||
-              !expenseSetup.mainCurrency ||
-              expenseSetup.currencies.length === 0
-            }
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add expense"
+        >
+          <form
+            className="modal-panel form-modal expense-entry"
+            onSubmit={submitExpense}
           >
-            Save expense
-          </button>
-        </form>
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">New expense</p>
+                <h2>Expense setup</h2>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                title="Close"
+                onClick={() => setShowExpenseForm(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="modal-form-body">
+              <label>
+                Name
+                <input
+                  value={expenseSetup.name}
+                  onChange={(event) =>
+                    updateExpenseSetup("name", event.target.value)
+                  }
+                  required
+                />
+              </label>
+              <div className="compact-form">
+                <label>
+                  Category
+                  <select
+                    value={expenseSetup.categoryId}
+                    onChange={(event) =>
+                      updateExpenseSetup("categoryId", event.target.value)
+                    }
+                    required
+                  >
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Main currency
+                  <select
+                    value={expenseSetup.mainCurrency}
+                    onChange={(event) =>
+                      updateExpenseSetup("mainCurrency", event.target.value)
+                    }
+                    required
+                  >
+                    {expenseSetup.currencies.map((currencyCode) => (
+                      <option key={currencyCode} value={currencyCode}>
+                        {currencyCode}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {userCurrencies.length > 0 ? (
+                <div className="currency-picker">
+                  {userCurrencies.map((item) => (
+                    <label className="currency-check" key={item.id}>
+                      <input
+                        type="checkbox"
+                        checked={expenseSetup.currencies.includes(
+                          item.currencyCode,
+                        )}
+                        onChange={() => toggleSetupCurrency(item.currencyCode)}
+                      />
+                      <span>{item.currencyCode}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  Add currencies in Settings before creating an expense.
+                </div>
+              )}
+              {createExpense.error ? (
+                <div className="form-error">{createExpense.error.message}</div>
+              ) : null}
+            </div>
+            <div className="confirm-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setShowExpenseForm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="primary-button"
+                disabled={
+                  createExpense.isPending ||
+                  !expenseSetup.name ||
+                  !expenseSetup.categoryId ||
+                  !expenseSetup.mainCurrency ||
+                  expenseSetup.currencies.length === 0
+                }
+              >
+                Save expense
+              </button>
+            </div>
+          </form>
+        </div>
       ) : null}
       {error ? (
         <div className="form-error">Could not load expenses.</div>

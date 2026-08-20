@@ -1,5 +1,6 @@
-import { ArrowRight, Coins, Trash2, UserRound } from "lucide-react";
+import { ArrowRight, Coins, LogOut, Trash2, UserRound } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { useAuth } from "../components/AuthProvider";
 
 const settingsTiles = [
   {
@@ -23,6 +24,8 @@ const settingsTiles = [
 ];
 
 export function SettingsPage() {
+  const { logout } = useAuth();
+
   return (
     <section className="page">
       <header className="page-header">
@@ -44,6 +47,15 @@ export function SettingsPage() {
             <ArrowRight size={18} />
           </NavLink>
         ))}
+        <button className="settings-tile settings-logout-tile" type="button" onClick={logout}>
+          <span className="settings-tile-icon danger-icon">
+            <LogOut size={22} />
+          </span>
+          <span>
+            <strong>Log out</strong>
+            <small>Sign out of this device.</small>
+          </span>
+        </button>
       </div>
     </section>
   );

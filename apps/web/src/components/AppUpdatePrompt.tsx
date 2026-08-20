@@ -4,7 +4,9 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import {
   appVersionUpdateEvent,
   currentAppVersion,
+  dismissLatestAppVersion,
   getStoredLatestAppVersion,
+  isLatestAppVersionDismissed,
   rememberCurrentAppVersion,
   type AppVersionUpdateDetail,
 } from "../lib/appVersion";
@@ -45,14 +47,25 @@ export function AppUpdatePrompt() {
     rememberCurrentAppVersion();
 
     const storedLatestVersion = getStoredLatestAppVersion();
-    if (storedLatestVersion) {
+    if (
+      storedLatestVersion &&
+      !isLatestAppVersionDismissed(storedLatestVersion)
+    ) {
       setLatestBuildNumber(storedLatestVersion);
       setBuildUpdateAvailable(true);
     }
 
     function handleApiVersionUpdate(event: Event) {
-      const { latestVersion } = (event as CustomEvent<AppVersionUpdateDetail>)
-        .detail;
+      const { latestVersion, updateAvailable } = (
+        event as CustomEvent<AppVersionUpdateDetail>
+      ).detail;
+      if (!updateAvailable) {
+        setLatestBuildNumber(null);
+        setBuildUpdateAvailable(false);
+        setDismissed(false);
+        return;
+      }
+      if (isLatestAppVersionDismissed(latestVersion)) return;
       setLatestBuildNumber(latestVersion);
       setBuildUpdateAvailable(true);
       setDismissed(false);
@@ -76,6 +89,7 @@ export function AppUpdatePrompt() {
           buildInfo.buildNumber &&
           buildInfo.buildNumber !== currentAppVersion
         ) {
+          if (isLatestAppVersionDismissed(buildInfo.buildNumber)) return;
           setLatestBuildNumber(buildInfo.buildNumber);
           setBuildUpdateAvailable(true);
           setDismissed(false);
@@ -146,10 +160,12 @@ export function AppUpdatePrompt() {
           <span>{updating ? "Restarting" : "Update and restart"}</span>
         </button>
         <button
-          className="icon-button"
+          className="icon-button app-update-close"
           type="button"
           onClick={() => {
+            dismissLatestAppVersion(latestBuildNumber);
             setDismissed(true);
+            setBuildUpdateAvailable(false);
             setNeedRefresh(false);
           }}
           title="Dismiss update"
