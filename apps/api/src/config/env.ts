@@ -44,6 +44,11 @@ const envSchema = z.object({
     .transform((value) => value.toLowerCase() === "true"),
   AL_MEEZAN_FUND_PRICE_BROWSER_COMMAND: z.string().default(""),
   AL_MEEZAN_FUND_PRICE_BROWSER_PROFILE_DIR: z.string().default(""),
+  AL_MEEZAN_FUND_PRICE_BROWSER_WAIT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20000),
 });
 
 export const env = envSchema.parse(process.env);

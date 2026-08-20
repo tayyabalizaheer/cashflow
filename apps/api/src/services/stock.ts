@@ -282,6 +282,7 @@ async function fetchTextWithBrowser(url: string) {
       "--no-sandbox",
       "--disable-dev-shm-usage",
       "--window-size=1365,900",
+      `--virtual-time-budget=${env.AL_MEEZAN_FUND_PRICE_BROWSER_WAIT_MS}`,
       ...(env.AL_MEEZAN_FUND_PRICE_BROWSER_PROFILE_DIR
         ? [`--user-data-dir=${env.AL_MEEZAN_FUND_PRICE_BROWSER_PROFILE_DIR}`]
         : []),
