@@ -11,6 +11,8 @@
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace @cash-flow/api\" \"npm run dev --workspace @cash-flow/web\"",
     "build": "npm run build --workspaces",
+    "build:deploy": "npm run build --workspace @cash-flow/web && npm run build --workspace @cash-flow/api",
+    "start": "npm run start --workspace @cash-flow/api",
     "typecheck": "npm run typecheck --workspaces",
     "lint": "npm run lint --workspaces",
     "test": "npm run test --workspaces",

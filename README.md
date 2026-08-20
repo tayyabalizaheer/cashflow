@@ -72,11 +72,25 @@ npm test
 npm run build
 ```
 
+## Deployment
+
+For deployment, build the frontend first and then the API:
+
+```bash
+npm run build:deploy
+npm run db:migrate
+npm start
+```
+
+The API server serves the built frontend from `apps/web/dist` in production, so one public server can handle both the app and `/api/v1` routes. Leave `VITE_API_URL` empty for same-domain deployment, or set it only when the API is hosted on a different domain.
+
 ## Docker
 
 ```bash
 docker compose up --build
 ```
+
+The Docker setup exposes the API service on port `4000`; that service also serves the built frontend in production.
 
 ## API Surface
 

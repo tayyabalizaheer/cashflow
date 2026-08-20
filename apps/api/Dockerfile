@@ -9,6 +9,7 @@ FROM node:20-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules node_modules
 COPY . .
+RUN npm run build --workspace @cash-flow/web
 RUN npm run build --workspace @cash-flow/api
 
 FROM node:20-alpine
@@ -18,5 +19,6 @@ COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/package.json apps/api/package.json
 COPY --from=build /app/apps/api/prisma apps/api/prisma
+COPY --from=build /app/apps/web/dist apps/web/dist
 EXPOSE 4000
 CMD ["node", "apps/api/dist/src/server.js"]
