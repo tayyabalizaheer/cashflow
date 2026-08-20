@@ -1,8 +1,9 @@
 import { Prisma } from "@prisma/client";
 import * as cheerio from "cheerio";
 import { execFile } from "node:child_process";
-import { access } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import puppeteer, { type Browser } from "puppeteer-core";
 import { promisify } from "node:util";
 import { env } from "../config/env.js";
 import { prisma } from "../config/prisma.js";
@@ -51,6 +52,23 @@ function browserCommands() {
     .map((command) => command.trim())
     .filter(Boolean);
   return [...configured, ...browserCommandCandidates];
+}
+
+function contentSummary(content: string) {
+  const $ = cheerio.load(content);
+  const title = $("title").first().text().replace(/\s+/g, " ").trim();
+  const body = $("body").text().replace(/\s+/g, " ").trim().slice(0, 180);
+  return title ? `title="${title}", body="${body}"` : `body="${body}"`;
+}
+
+async function writeBrowserDump(content: string) {
+  if (!env.AL_MEEZAN_FUND_PRICE_BROWSER_DUMP_PATH) {
+    return;
+  }
+
+  const dumpPath = path.resolve(env.AL_MEEZAN_FUND_PRICE_BROWSER_DUMP_PATH);
+  await mkdir(path.dirname(dumpPath), { recursive: true });
+  await writeFile(dumpPath, content, "utf8");
 }
 
 async function commandExists(command: string) {
@@ -281,8 +299,10 @@ async function fetchTextWithBrowser(url: string) {
       "--disable-gpu",
       "--no-sandbox",
       "--disable-dev-shm-usage",
+      "--disable-background-networking",
       "--window-size=1365,900",
       `--virtual-time-budget=${env.AL_MEEZAN_FUND_PRICE_BROWSER_WAIT_MS}`,
+      "--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
       ...(env.AL_MEEZAN_FUND_PRICE_BROWSER_PROFILE_DIR
         ? [`--user-data-dir=${env.AL_MEEZAN_FUND_PRICE_BROWSER_PROFILE_DIR}`]
         : []),
@@ -297,6 +317,7 @@ async function fetchTextWithBrowser(url: string) {
       });
 
       if (stdout.trim()) {
+        await writeBrowserDump(stdout);
         return stdout;
       }
 
@@ -314,8 +335,87 @@ async function fetchTextWithBrowser(url: string) {
   );
 }
 
+async function fetchTextWithPuppeteer(url: string) {
+  const failures: string[] = [];
+
+  for (const command of browserCommands()) {
+    if (!(await commandExists(command))) {
+      continue;
+    }
+
+    let browser: Browser | null = null;
+
+    try {
+      browser = await puppeteer.launch({
+        executablePath: command,
+        headless: env.AL_MEEZAN_FUND_PRICE_BROWSER_HEADLESS,
+        userDataDir: env.AL_MEEZAN_FUND_PRICE_BROWSER_PROFILE_DIR || undefined,
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-gpu",
+          "--window-size=1365,900",
+          "--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
+        ],
+      });
+
+      const page = await browser.newPage();
+      await page.setUserAgent(
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
+      );
+      await page.setViewport({ width: 1365, height: 900 });
+      await page.goto(url, {
+        waitUntil: "networkidle2",
+        timeout: env.AL_MEEZAN_FUND_PRICE_BROWSER_WAIT_MS + 30000,
+      });
+      await page.waitForFunction(
+        () =>
+          document.body.innerText.includes("Repurchase") ||
+          document.body.innerText.includes("Funds Category"),
+        { timeout: env.AL_MEEZAN_FUND_PRICE_BROWSER_WAIT_MS },
+      );
+      const content = await page.content();
+      await writeBrowserDump(content);
+      return content;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`${command}: ${message}`);
+    } finally {
+      await browser?.close().catch(() => undefined);
+    }
+  }
+
+  throw new Error(
+    failures.length
+      ? `Puppeteer fallback failed. ${failures.join(" | ")}`
+      : "Puppeteer fallback failed. No Chrome or Chromium command was found.",
+  );
+}
+
 export async function fetchStockRows() {
   const failures: string[] = [];
+
+  if (env.AL_MEEZAN_FUND_PRICE_SOURCE_FILE) {
+    try {
+      const content = await readFile(
+        path.resolve(env.AL_MEEZAN_FUND_PRICE_SOURCE_FILE),
+        "utf8",
+      );
+      const rows = parseStockRows(content);
+
+      if (rows.length > 0) {
+        return rows;
+      }
+
+      failures.push("Configured stock file: no stock rows found");
+      console.warn("Configured stock file returned no rows.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`Configured stock file: ${message}`);
+      console.warn(`Configured stock file failed. ${message}`);
+    }
+  }
 
   for (const source of stockSources()) {
     try {
@@ -327,7 +427,9 @@ export async function fetchStockRows() {
       }
 
       failures.push(`${source.label}: no stock rows found`);
-      console.warn(`Stock scrape source returned no rows: ${source.label}`);
+      console.warn(
+        `Stock scrape source returned no rows: ${source.label}. ${contentSummary(content)}`,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       failures.push(`${source.label}: ${message}`);
@@ -336,6 +438,30 @@ export async function fetchStockRows() {
   }
 
   if (env.AL_MEEZAN_FUND_PRICE_BROWSER_FALLBACK_ENABLED) {
+    try {
+      console.log(
+        `Stock scrape trying real browser fallback with ${env.AL_MEEZAN_FUND_PRICE_BROWSER_WAIT_MS}ms wait.`,
+      );
+      const content = await fetchTextWithPuppeteer(SOURCE_URL);
+      const rows = parseStockRows(content);
+
+      if (rows.length > 0) {
+        console.log(
+          `Stock scrape real browser fallback found ${rows.length} rows.`,
+        );
+        return rows;
+      }
+
+      failures.push("Real browser fallback: no stock rows found");
+      console.warn(
+        `Stock scrape real browser fallback returned no rows. ${contentSummary(content)}`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`Real browser fallback: ${message}`);
+      console.warn(`Stock scrape real browser fallback failed. ${message}`);
+    }
+
     try {
       console.log(
         `Stock scrape trying browser fallback with ${env.AL_MEEZAN_FUND_PRICE_BROWSER_WAIT_MS}ms wait.`,
@@ -349,7 +475,9 @@ export async function fetchStockRows() {
       }
 
       failures.push("Browser fallback: no stock rows found");
-      console.warn("Stock scrape browser fallback returned no rows.");
+      console.warn(
+        `Stock scrape browser fallback returned no rows. ${contentSummary(content)}`,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       failures.push(`Browser fallback: ${message}`);
