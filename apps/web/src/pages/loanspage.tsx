@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Copy, MoreVertical, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { api, formatCurrency } from "../lib/api";
-import { useCloseActionMenu } from "../lib/useCloseActionMenu";
+import { useCloseActionMenu } from "../lib/usecloseactionmenu";
 
 type LoanBalance = {
   currency: string;

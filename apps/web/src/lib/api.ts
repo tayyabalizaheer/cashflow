@@ -1,9 +1,9 @@
-import { queueOfflineMutation } from "./offlineQueue";
-import { appVersionHeader, registerApiAppVersion } from "./appVersion";
+import { queueOfflineMutation } from "./offlinequeue";
+import { appVersionHeader, registerApiAppVersion } from "./appversion";
 import { API_URL } from "./config";
-import { localResponseForPath } from "./localSqlite";
-import { getAccessToken } from "./sessionToken";
-export { setAccessToken } from "./sessionToken";
+import { localResponseForPath } from "./localsqlite";
+import { getAccessToken } from "./sessiontoken";
+export { setAccessToken } from "./sessiontoken";
 
 export class ApiClientError extends Error {
   constructor(

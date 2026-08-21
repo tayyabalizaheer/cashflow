@@ -5,7 +5,7 @@ import {
   resetLocalDatabase,
   type BootstrapProgress,
   type BootstrapSummary
-} from "../lib/localSqlite";
+} from "../lib/localsqlite";
 
 type User = {
   id: string;

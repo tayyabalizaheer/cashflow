@@ -9,7 +9,7 @@ import {
   isLatestAppVersionDismissed,
   rememberCurrentAppVersion,
   type AppVersionUpdateDetail,
-} from "../lib/appVersion";
+} from "../lib/appversion";
 
 type BuildInfo = {
   buildNumber?: string;

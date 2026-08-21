@@ -2,7 +2,7 @@ import initSqlJs from "sql.js";
 import type { Database, SqlValue } from "sql.js";
 import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 import { API_URL } from "./config";
-import { getAccessToken } from "./sessionToken";
+import { getAccessToken } from "./sessiontoken";
 
 const storageDbName = "cash-flow-browser-sqlite";
 const storageStoreName = "database";

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useState } from "react";
-import { useAuth } from "./AuthProvider";
+import { useAuth } from "./authprovider";
 
 const items = [
   { to: "/", label: "Dashboard", icon: ChartPie },

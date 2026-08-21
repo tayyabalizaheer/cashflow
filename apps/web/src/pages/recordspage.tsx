@@ -9,9 +9,9 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { RecordTable } from "../components/RecordTable";
+import { RecordTable } from "../components/recordtable";
 import { api, formatCurrency } from "../lib/api";
-import { useCloseActionMenu } from "../lib/useCloseActionMenu";
+import { useCloseActionMenu } from "../lib/usecloseactionmenu";
 
 type Currency = {
   code: string;

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { flushOfflineMutations } from "./offlineQueue";
+import { flushOfflineMutations } from "./offlinequeue";
 
 export function useOnlineSync(enabled: boolean) {
   useEffect(() => {

@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { api, formatCurrency } from "../lib/api";
-import { useCloseActionMenu } from "../lib/useCloseActionMenu";
+import { useCloseActionMenu } from "../lib/usecloseactionmenu";
 
 type UserCurrency = {
   id: string;

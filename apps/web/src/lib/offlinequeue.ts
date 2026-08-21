@@ -1,8 +1,8 @@
 import { API_URL } from "./config";
-import { getAccessToken } from "./sessionToken";
-import { listLocalMutations, queueLocalMutation, removeLocalMutation } from "./localSqlite";
-import type { OfflineMutation } from "./localSqlite";
-export type { OfflineMutation } from "./localSqlite";
+import { getAccessToken } from "./sessiontoken";
+import { listLocalMutations, queueLocalMutation, removeLocalMutation } from "./localsqlite";
+import type { OfflineMutation } from "./localsqlite";
+export type { OfflineMutation } from "./localsqlite";
 
 let flushPromise: Promise<{ pushed: number }> | null = null;
 

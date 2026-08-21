@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer } from "recharts";
-import { StatCard } from "../components/StatCard";
+import { StatCard } from "../components/statcard";
 import { api, formatCurrency } from "../lib/api";
 
 type DashboardResponse = {

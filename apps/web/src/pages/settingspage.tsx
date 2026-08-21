@@ -1,6 +1,6 @@
 import { ArrowRight, Coins, LogOut, Trash2, UserRound } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import { useAuth } from "../components/AuthProvider";
+import { useAuth } from "../components/authprovider";
 
 const settingsTiles = [
   {

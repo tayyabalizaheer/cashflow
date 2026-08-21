@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
-import { useAuth } from "../components/AuthProvider";
+import { useAuth } from "../components/authprovider";
 import { ApiClientError } from "../lib/api";
 
 export function AuthPage() {
