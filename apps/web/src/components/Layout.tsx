@@ -4,12 +4,13 @@ import {
   Calculator,
   ChartPie,
   CircleDollarSign,
-  LogOut,
+  MoreHorizontal,
   Settings,
   TrendingUp,
   WalletCards
 } from "lucide-react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { useState } from "react";
 import { useAuth } from "./AuthProvider";
 
 const items = [
@@ -23,8 +24,18 @@ const items = [
   { to: "/settings", label: "Settings", icon: Settings }
 ];
 
+const mobileMainItems = items.slice(0, 4);
+const mobileMoreItems = items.slice(4);
+
 export function Layout() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const location = useLocation();
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreIsActive = mobileMoreItems.some((item) =>
+    item.to === "/"
+      ? location.pathname === item.to
+      : location.pathname.startsWith(item.to),
+  );
 
   return (
     <div className="shell">
@@ -46,9 +57,6 @@ export function Layout() {
             <strong>{user?.fullName ?? "Guest"}</strong>
             <span>{user?.email ?? "Not signed in"}</span>
           </div>
-          <button className="icon-button" onClick={logout} title="Log out">
-            <LogOut size={18} />
-          </button>
         </div>
       </aside>
 
@@ -57,12 +65,40 @@ export function Layout() {
       </main>
 
       <nav className="bottom-nav" aria-label="Primary mobile">
-        {items.slice(0, 5).map((item) => (
-          <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? "bottom-item active" : "bottom-item")}>
+        {mobileMainItems.map((item) => (
+          <NavLink key={item.to} to={item.to} onClick={() => setShowMoreMenu(false)} className={({ isActive }) => (isActive ? "bottom-item active" : "bottom-item")}>
             <item.icon size={20} />
             <span>{item.label}</span>
           </NavLink>
         ))}
+        <div className="bottom-more-wrap">
+          <button
+            className={moreIsActive || showMoreMenu ? "bottom-item active" : "bottom-item"}
+            type="button"
+            onClick={() => setShowMoreMenu((current) => !current)}
+            aria-expanded={showMoreMenu}
+            aria-haspopup="menu"
+          >
+            <MoreHorizontal size={20} />
+            <span>More</span>
+          </button>
+          {showMoreMenu ? (
+            <div className="bottom-more-menu" role="menu">
+              {mobileMoreItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  role="menuitem"
+                  onClick={() => setShowMoreMenu(false)}
+                  className={({ isActive }) => (isActive ? "active" : "")}
+                >
+                  <item.icon size={17} />
+                  <span>{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </nav>
     </div>
   );

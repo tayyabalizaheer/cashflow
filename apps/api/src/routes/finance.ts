@@ -917,7 +917,7 @@ const loanTransactionSchema = z.object({
 const loanInclude = {
   transactions: {
     where: { archivedAt: null },
-    orderBy: { transactionDate: "desc" as const },
+    orderBy: { createdAt: "desc" as const },
   },
   repayments: {
     where: { archivedAt: null },
@@ -1001,7 +1001,7 @@ publicFinanceRouter.get(
         updatedAt: true,
         transactions: {
           where: { archivedAt: null },
-          orderBy: { transactionDate: "desc" },
+          orderBy: { createdAt: "desc" },
           select: {
             id: true,
             kind: true,
@@ -1259,6 +1259,46 @@ financeRouter.put(
       await attachFilesToLoans([{ transactions: [item] }])
     )[0]?.transactions?.[0];
     return res.json({ data: itemWithFiles ?? item });
+  }),
+);
+
+financeRouter.delete(
+  "/loans/:loanId/transactions/:transactionId",
+  asyncHandler(async (req, res) => {
+    const loanId = paramUuid(req.params.loanId);
+    const transactionId = paramUuid(req.params.transactionId);
+    const loan = await prisma.loan.findFirst({
+      where: { id: loanId, userId: req.user!.id, archivedAt: null },
+    });
+    if (!loan) throw notFound("Loan not found");
+
+    await prisma.$transaction(async (tx) => {
+      const result = await tx.loanTransaction.updateMany({
+        where: {
+          id: transactionId,
+          loanId,
+          userId: req.user!.id,
+          archivedAt: null,
+        },
+        data: { archivedAt: new Date() },
+      });
+      if (result.count === 0) throw notFound("Transaction not found");
+      await tx.attachment.updateMany({
+        where: {
+          userId: req.user!.id,
+          entityType: "LOAN_TRANSACTION",
+          entityId: transactionId,
+          archivedAt: null,
+        },
+        data: { archivedAt: new Date() },
+      });
+      await tx.loan.update({
+        where: { id: loan.id },
+        data: { updatedAt: new Date() },
+      });
+    });
+
+    return res.status(204).send();
   }),
 );
 

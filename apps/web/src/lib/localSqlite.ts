@@ -247,6 +247,7 @@ function trashModuleForType(type: string) {
 function trashLabelForType(type: string) {
   const map: Record<string, string> = {
     loans: "Loan",
+    "loan-transactions": "Loan transaction",
     expenses: "Expense",
     investments: "Investment",
     assets: "Asset",
@@ -266,7 +267,7 @@ function trashTitleForRecord(type: string, record: Record<string, unknown>) {
 
 function localTrashItems(db: Database) {
   const types = ["loans", "expenses", "investments", "assets"];
-  return types.flatMap((type) => {
+  const moduleItems = types.flatMap((type) => {
     const module = trashModuleForType(type);
     if (!module) return [];
     return readModuleRecords(db, module)
@@ -281,6 +282,27 @@ function localTrashItems(db: Database) {
         updatedAt: record.updatedAt,
       }));
   });
+  const loanTransactionItems = readModuleRecords(db, "loans").flatMap((loan) => {
+    const transactions = Array.isArray(loan.transactions)
+      ? (loan.transactions.filter(isRecord) as Array<Record<string, unknown>>)
+      : [];
+    return transactions
+      .filter((transaction) => transaction.archivedAt)
+      .map((transaction) => ({
+        id: String(transaction.id),
+        type: "loan-transactions",
+        label: trashLabelForType("loan-transactions"),
+        title: String(transaction.purpose ?? loan.person ?? "Loan transaction"),
+        archivedAt: String(transaction.archivedAt),
+        createdAt: transaction.createdAt,
+        updatedAt: transaction.updatedAt,
+      }));
+  });
+  return [...moduleItems, ...loanTransactionItems].sort(
+    (left, right) =>
+      new Date(right.archivedAt).getTime() -
+      new Date(left.archivedAt).getTime(),
+  );
 }
 
 function fiveCharId() {
@@ -321,12 +343,15 @@ function writeLoanWithBalances(
   const transactions = Array.isArray(loan.transactions)
     ? (loan.transactions.filter(isRecord) as Array<Record<string, unknown>>)
     : [];
+  const activeTransactions = transactions.filter(
+    (transaction) => !transaction.archivedAt,
+  );
   upsertLocalRecord(
     db,
     "loans",
     {
       ...loan,
-      balances: loanBalancesFromTransactions(transactions),
+      balances: loanBalancesFromTransactions(activeTransactions),
       transactions,
     },
     syncedAt,
@@ -380,6 +405,33 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
   );
   if (mutation.method === "POST" && trashRestoreMatch) {
     const [, type, id] = trashRestoreMatch;
+    if (type === "loan-transactions" && id) {
+      const loan = readModuleRecords(db, "loans").find(
+        (item) =>
+          Array.isArray(item.transactions) &&
+          item.transactions.some(
+            (transaction) => isRecord(transaction) && transaction.id === id,
+          ),
+      );
+      if (loan) {
+        const transactions = Array.isArray(loan.transactions)
+          ? (loan.transactions.filter(isRecord) as Array<
+              Record<string, unknown>
+            >)
+          : [];
+        const updatedTransactions = transactions.map((transaction) =>
+          transaction.id === id
+            ? { ...transaction, archivedAt: null, updatedAt: now }
+            : transaction,
+        );
+        writeLoanWithBalances(
+          db,
+          { ...loan, transactions: updatedTransactions, updatedAt: now },
+          now,
+        );
+        return updatedTransactions.find((transaction) => transaction.id === id);
+      }
+    }
     const module = trashModuleForType(type ?? "");
     const record = module
       ? readModuleRecords(db, module).find((item) => item.id === id)
@@ -394,6 +446,38 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
   const trashDeleteMatch = mutation.path.match(/^\/trash\/([^/]+)\/([^/]+)$/);
   if (mutation.method === "DELETE" && trashDeleteMatch) {
     const [, type, id] = trashDeleteMatch;
+    if (type === "loan-transactions" && id) {
+      const loan = readModuleRecords(db, "loans").find(
+        (item) =>
+          Array.isArray(item.transactions) &&
+          item.transactions.some(
+            (transaction) => isRecord(transaction) && transaction.id === id,
+          ),
+      );
+      if (loan) {
+        const transactions = Array.isArray(loan.transactions)
+          ? (loan.transactions.filter(isRecord) as Array<
+              Record<string, unknown>
+            >)
+          : [];
+        writeLoanWithBalances(
+          db,
+          {
+            ...loan,
+            transactions: transactions.filter(
+              (transaction) => transaction.id !== id,
+            ),
+            updatedAt: now,
+          },
+          now,
+        );
+        db.run(
+          "DELETE FROM local_attachments WHERE entity_type = ? AND entity_id = ?",
+          ["LOAN_TRANSACTION", id],
+        );
+      }
+      return { deleted: true };
+    }
     const module = trashModuleForType(type ?? "");
     if (module && id) deleteLocalRecord(db, module, id);
     return { deleted: true };
@@ -449,6 +533,29 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
     mutation.body = serialize({ ...payload, id: localAsset.id });
     upsertLocalRecord(db, "assets", localAsset, now);
     return localAsset;
+  }
+
+  if (mutation.method === "POST" && mutation.path === "/investments") {
+    const localInvestment = {
+      id: typeof payload.id === "string" ? payload.id : crypto.randomUUID(),
+      type: String(payload.type ?? ""),
+      name: payload.name ?? null,
+      amountInvested: payload.amountInvested ?? "0",
+      currency: payload.currency,
+      quantity: payload.quantity ?? null,
+      nav: payload.nav ?? null,
+      currentValue: payload.currentValue ?? null,
+      purchaseDate: payload.purchaseDate ?? null,
+      latestValuationDate: payload.latestValuationDate ?? null,
+      zakatEligible: Boolean(payload.zakatEligible),
+      zakatPercentage: payload.zakatPercentage ?? 100,
+      notes: payload.notes ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    mutation.body = serialize({ ...payload, id: localInvestment.id });
+    upsertLocalRecord(db, "investments", localInvestment, now);
+    return localInvestment;
   }
 
   const loanUpdateMatch = mutation.path.match(/^\/loans\/([^/]+)$/);
@@ -546,6 +653,32 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
         (transaction) => transaction.id === transactionId,
       );
     }
+  }
+
+  if (mutation.method === "DELETE" && loanTransactionUpdateMatch) {
+    const [, loanId, transactionId] = loanTransactionUpdateMatch;
+    const loan = readActiveModuleRecords(db, "loans").find(
+      (item) => item.id === loanId,
+    );
+    if (loan && transactionId) {
+      const transactions = Array.isArray(loan.transactions)
+        ? (loan.transactions.filter(isRecord) as Array<Record<string, unknown>>)
+        : [];
+      const updatedTransactions = transactions.map((transaction) =>
+        transaction.id === transactionId
+          ? { ...transaction, archivedAt: now, updatedAt: now }
+          : transaction,
+      );
+      writeLoanWithBalances(
+        db,
+        { ...loan, transactions: updatedTransactions, updatedAt: now },
+        now,
+      );
+      return updatedTransactions.find(
+        (transaction) => transaction.id === transactionId,
+      );
+    }
+    return { archivedAt: now };
   }
 
   return undefined;
