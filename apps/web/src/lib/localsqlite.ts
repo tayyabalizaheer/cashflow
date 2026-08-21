@@ -154,6 +154,42 @@ function serialize(value: unknown) {
   );
 }
 
+function timeValue(value: unknown) {
+  if (typeof value !== "string") return 0;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function sortRecordsByLatest(records: Array<Record<string, unknown>>) {
+  return [...records].sort((left, right) => {
+    const leftTransactions = Array.isArray(left.transactions)
+      ? (left.transactions.filter(isRecord) as Array<Record<string, unknown>>)
+      : [];
+    const rightTransactions = Array.isArray(right.transactions)
+      ? (right.transactions.filter(isRecord) as Array<Record<string, unknown>>)
+      : [];
+    const leftTime = Math.max(
+      timeValue(left.updatedAt),
+      timeValue(left.createdAt),
+      ...leftTransactions.flatMap((transaction) => [
+        timeValue(transaction.createdAt),
+        timeValue(transaction.updatedAt),
+        timeValue(transaction.transactionDate),
+      ]),
+    );
+    const rightTime = Math.max(
+      timeValue(right.updatedAt),
+      timeValue(right.createdAt),
+      ...rightTransactions.flatMap((transaction) => [
+        timeValue(transaction.createdAt),
+        timeValue(transaction.updatedAt),
+        timeValue(transaction.transactionDate),
+      ]),
+    );
+    return rightTime - leftTime;
+  });
+}
+
 function rowsFromResult<T>(values: SqlValue[][], columns: string[]) {
   return values.map((row) =>
     columns.reduce<Record<string, SqlValue>>((acc, column, index) => {
@@ -227,7 +263,9 @@ function readModuleRecords(db: Database, module: string) {
 }
 
 function readActiveModuleRecords(db: Database, module: string) {
-  return readModuleRecords(db, module).filter((record) => !record.archivedAt);
+  return sortRecordsByLatest(
+    readModuleRecords(db, module).filter((record) => !record.archivedAt),
+  );
 }
 
 function deleteLocalRecord(db: Database, module: string, id: string) {
@@ -346,13 +384,14 @@ function writeLoanWithBalances(
   const activeTransactions = transactions.filter(
     (transaction) => !transaction.archivedAt,
   );
+  const sortedTransactions = sortRecordsByLatest(transactions);
   upsertLocalRecord(
     db,
     "loans",
     {
       ...loan,
       balances: loanBalancesFromTransactions(activeTransactions),
-      transactions,
+      transactions: sortedTransactions,
     },
     syncedAt,
   );

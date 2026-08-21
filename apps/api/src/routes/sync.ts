@@ -89,7 +89,7 @@ syncRouter.get(
         include: {
           transactions: {
             where: { archivedAt: null },
-            orderBy: { transactionDate: "desc" },
+            orderBy: { createdAt: "desc" },
           },
           repayments: { where: { archivedAt: null } },
         },
@@ -119,7 +119,7 @@ syncRouter.get(
               orderBy: { currencyCode: "asc" },
             },
           },
-          orderBy: { transactionDate: "desc" },
+          orderBy: { createdAt: "desc" },
         },
         amounts: {
           include: { currency: true },

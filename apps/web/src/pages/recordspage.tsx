@@ -45,6 +45,9 @@ type ExpenseTransactionAmount = {
 type ExpenseTransaction = {
   id: string;
   mainAmount: string;
+  transactionDate?: string;
+  createdAt?: string;
+  updatedAt?: string;
   amounts: ExpenseTransactionAmount[];
 };
 
@@ -70,6 +73,8 @@ type RecordItem = {
   currencies?: ExpenseCurrencyLine[];
   transactions?: ExpenseTransaction[];
   status?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 type AssetCurrencyValue = {
@@ -205,6 +210,33 @@ const config = {
 };
 
 const todayInputValue = () => new Date().toISOString().slice(0, 10);
+
+function timeValue(value?: string | null) {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function latestRecordTime(record: RecordItem) {
+  const transactionTimes =
+    record.transactions?.flatMap((transaction) => [
+      timeValue(transaction.createdAt),
+      timeValue(transaction.updatedAt),
+      timeValue(transaction.transactionDate),
+    ]) ?? [];
+  return Math.max(
+    timeValue(record.updatedAt),
+    timeValue(record.createdAt),
+    timeValue(record.valuationDate),
+    timeValue(record.acquisitionDate),
+    timeValue(record.expenseDate),
+    ...transactionTimes,
+  );
+}
+
+function compareRecordsByLatestDesc(left: RecordItem, right: RecordItem) {
+  return latestRecordTime(right) - latestRecordTime(left);
+}
 
 function expenseCurrencyCodes(expense: RecordItem) {
   if (expense.currencies?.length)
@@ -613,7 +645,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     },
   });
 
-  const rows = data?.data ?? [];
+  const rows = [...(data?.data ?? [])].sort(compareRecordsByLatestDesc);
   const categories = categoriesData?.data ?? [];
   const userCurrencies = userCurrenciesData?.data ?? [];
   const assetExpenses = assetExpenseData?.data ?? [];

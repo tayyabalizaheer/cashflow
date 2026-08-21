@@ -344,7 +344,7 @@ const expenseInclude = {
         orderBy: { currencyCode: "asc" as const },
       },
     },
-    orderBy: { transactionDate: "desc" as const },
+    orderBy: { createdAt: "desc" as const },
   },
   amounts: {
     include: { currency: true },
@@ -548,7 +548,7 @@ financeRouter.get(
         skip,
         take,
         include: expenseInclude,
-        orderBy: { expenseDate: "desc" },
+        orderBy: { updatedAt: "desc" },
       }),
       prisma.expense.count({ where }),
     ]);

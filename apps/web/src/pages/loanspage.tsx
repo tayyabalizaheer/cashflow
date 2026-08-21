@@ -15,6 +15,8 @@ type Loan = {
   shareId: string;
   person: string;
   balances?: LoanBalance[];
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 function balanceClass(value: string | number) {
@@ -26,6 +28,19 @@ function balanceClass(value: string | number) {
 
 function shareUrl(shareId: string) {
   return `${window.location.origin}/l/${shareId}`;
+}
+
+function timeValue(value?: string | null) {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function compareLoansByLatestDesc(left: Loan, right: Loan) {
+  return (
+    Math.max(timeValue(right.updatedAt), timeValue(right.createdAt)) -
+    Math.max(timeValue(left.updatedAt), timeValue(left.createdAt))
+  );
 }
 
 export function LoansPage() {
@@ -77,7 +92,13 @@ export function LoansPage() {
   });
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
-  const loans = (data?.data ?? []).filter((loan) => !normalizedSearch || loan.person.toLowerCase().includes(normalizedSearch));
+  const loans = [...(data?.data ?? [])]
+    .sort(compareLoansByLatestDesc)
+    .filter(
+      (loan) =>
+        !normalizedSearch ||
+        loan.person.toLowerCase().includes(normalizedSearch),
+    );
 
   function submitLoan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

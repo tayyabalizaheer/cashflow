@@ -48,6 +48,8 @@ type ExpenseTransaction = {
   id: string;
   purpose: string;
   transactionDate: string;
+  createdAt?: string;
+  updatedAt?: string;
   mainCurrency: string;
   mainAmount: string;
   notes?: string | null;
@@ -220,13 +222,13 @@ function transactionAmountLines(
   });
 }
 
-function compareTransactionsByDateDesc(
+function compareTransactionsByCreatedDesc(
   left: ExpenseTransaction,
   right: ExpenseTransaction,
 ) {
   return (
-    new Date(right.transactionDate).getTime() -
-    new Date(left.transactionDate).getTime()
+    new Date(right.createdAt ?? right.transactionDate).getTime() -
+    new Date(left.createdAt ?? left.transactionDate).getTime()
   );
 }
 
@@ -494,7 +496,7 @@ export function ExpenseDetailPage() {
   const currencyCodes = expenseCurrencyCodes(expense);
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const transactions = [...(expense.transactions ?? [])].sort(
-    compareTransactionsByDateDesc,
+    compareTransactionsByCreatedDesc,
   );
   const purposeOptions = [
     ...new Set(transactions.map((transaction) => transaction.purpose)),
