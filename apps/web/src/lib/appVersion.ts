@@ -18,7 +18,13 @@ export function rememberCurrentAppVersion() {
 }
 
 export function registerApiAppVersion(latestVersion: string | null) {
-  if (!latestVersion || latestVersion === currentAppVersion) {
+  const isNonBuildDevelopmentHeader =
+    latestVersion === "development" && currentAppVersion !== "development";
+  if (
+    !latestVersion ||
+    latestVersion === currentAppVersion ||
+    isNonBuildDevelopmentHeader
+  ) {
     rememberCurrentAppVersion();
     localStorage.removeItem(latestVersionKey);
     window.dispatchEvent(
@@ -53,13 +59,14 @@ export function getStoredLatestAppVersion() {
 }
 
 export function dismissLatestAppVersion(latestVersion: string | null) {
-  if (latestVersion) {
-    localStorage.setItem(dismissedVersionKey, latestVersion);
-  }
+  localStorage.setItem(
+    dismissedVersionKey,
+    latestVersion ?? `service-worker:${currentAppVersion}`,
+  );
 }
 
 export function isLatestAppVersionDismissed(latestVersion: string | null) {
-  return Boolean(
-    latestVersion && localStorage.getItem(dismissedVersionKey) === latestVersion,
-  );
+  const dismissedVersion = localStorage.getItem(dismissedVersionKey);
+  const versionKey = latestVersion ?? `service-worker:${currentAppVersion}`;
+  return dismissedVersion === versionKey;
 }

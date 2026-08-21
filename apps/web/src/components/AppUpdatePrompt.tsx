@@ -119,7 +119,10 @@ export function AppUpdatePrompt() {
     };
   }, [registration]);
 
-  const showPrompt = !dismissed && (needRefresh || buildUpdateAvailable);
+  const showPrompt =
+    !dismissed &&
+    !isLatestAppVersionDismissed(latestBuildNumber) &&
+    (needRefresh || buildUpdateAvailable);
 
   async function applyUpdate() {
     setUpdating(true);

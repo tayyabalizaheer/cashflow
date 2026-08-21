@@ -94,9 +94,25 @@ function resolveAppVersion(frontendDist: string | undefined) {
     normalizeVersion(process.env.GITHUB_SHA);
 
   if (configuredVersion) return configuredVersion;
+
+  const frontendBuildNumber = readFrontendBuildNumber(frontendDist);
+  if (frontendBuildNumber) return frontendBuildNumber;
   if (!isProduction) return "development";
 
-  return readFrontendBuildNumber(frontendDist) ?? "0.1.0";
+  return "0.1.0";
+}
+
+function isViteDevRequest(req: express.Request) {
+  if (isProduction) return false;
+  const source = req.get("origin") ?? req.get("referer");
+  if (!source) return false;
+
+  try {
+    const url = new URL(source);
+    return ["localhost", "127.0.0.1"].includes(url.hostname) && url.port === "5173";
+  } catch {
+    return false;
+  }
 }
 
 export function createApp() {
@@ -132,7 +148,7 @@ export function createApp() {
     }),
   );
   app.use("/api", (_req, res, next) => {
-    res.setHeader(appVersionHeader, appVersion);
+    res.setHeader(appVersionHeader, isViteDevRequest(_req) ? "development" : appVersion);
     next();
   });
   app.use(compression());
