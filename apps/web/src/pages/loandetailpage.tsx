@@ -1227,7 +1227,7 @@ export function LoanDetailPage() {
           aria-modal="true"
           aria-label="Loan transaction images"
         >
-          <section className="modal-panel">
+          <section className="modal-panel image-modal">
             <div className="modal-header">
               <div>
                 <p className="eyebrow">Images</p>

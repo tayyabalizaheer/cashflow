@@ -1020,7 +1020,7 @@ export function ExpenseDetailPage() {
           aria-modal="true"
           aria-label="Transaction images"
         >
-          <section className="modal-panel">
+          <section className="modal-panel image-modal">
             <div className="modal-header">
               <div>
                 <p className="eyebrow">Images</p>

@@ -2007,6 +2007,10 @@ th {
   width: min(920px, 100%);
 }
 
+.image-modal {
+  width: min(980px, 100%);
+}
+
 .stock-detail-list {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
 }
@@ -2121,16 +2125,18 @@ th {
 
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
   gap: 10px;
+  align-items: start;
 }
 
 .image-grid img {
   width: 100%;
-  aspect-ratio: 1;
-  object-fit: cover;
+  max-height: min(70vh, 620px);
+  object-fit: contain;
   border: 1px solid var(--line);
   border-radius: 8px;
+  background: var(--mist);
 }
 
 .currency-picker,
