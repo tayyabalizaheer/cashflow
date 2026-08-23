@@ -13,6 +13,11 @@ export type AppVersionUpdateDetail = {
 
 export const currentAppVersion = __APP_BUILD_NUMBER__;
 
+export function versionedAssetUrl(url: string) {
+  if (currentAppVersion === "development") return url;
+  return `${url}${url.includes("?") ? "&" : "?"}${currentAppVersion}`;
+}
+
 export function rememberCurrentAppVersion() {
   localStorage.setItem(currentVersionKey, currentAppVersion);
 }

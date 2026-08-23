@@ -537,7 +537,7 @@ export function LoanDetailPage() {
     });
 
   return (
-    <section className="page">
+    <section className={`page${isPublicView ? " public-share-page" : ""}`}>
       <header className="page-header records-header">
         <div className="records-title-block">
           <p className="eyebrow">Loan</p>

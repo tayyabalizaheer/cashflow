@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../components/authprovider";
 import { ApiClientError } from "../lib/api";
+import { versionedAssetUrl } from "../lib/appversion";
 
 export function AuthPage() {
   const { user, login, register, syncProgress } = useAuth();
@@ -52,7 +53,7 @@ export function AuthPage() {
     <main className="auth-screen">
       <section className="auth-panel">
         <form className="form-card" onSubmit={submit} noValidate>
-          <img className="auth-brand-logo" src="/brand/logo-wordmark.png" alt="Cash Flow" />
+          <img className="auth-brand-logo" src={versionedAssetUrl("/brand/logo-wordmark.png")} alt="Cash Flow" />
           <div className="segmented">
             <button type="button" className={mode === "login" ? "selected" : ""} onClick={() => setMode("login")}>
               Login

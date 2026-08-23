@@ -12,6 +12,8 @@ import {
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "./authprovider";
+import { useTheme } from "./themeprovider";
+import { versionedAssetUrl } from "../lib/appversion";
 
 const items = [
   { to: "/", label: "Dashboard", icon: ChartPie },
@@ -29,6 +31,7 @@ const mobileMoreItems = items.slice(4);
 
 export function Layout() {
   const { user } = useAuth();
+  const { resolvedTheme } = useTheme();
   const location = useLocation();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreIsActive = mobileMoreItems.some((item) =>
@@ -41,7 +44,10 @@ export function Layout() {
     <div className="shell">
       <aside className="sidebar" aria-label="Primary">
         <NavLink to="/" className="brand" aria-label="Cash Flow dashboard">
-          <img src="/icons/icon-192.png" alt="" />
+          <img
+            src={versionedAssetUrl(`/icons/icon-${resolvedTheme}-192.png`)}
+            alt=""
+          />
           <span>Cash Flow</span>
         </NavLink>
         <nav className="nav-list">
