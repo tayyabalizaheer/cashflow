@@ -1015,6 +1015,14 @@ th {
   cursor: default;
 }
 
+.expense-list-header {
+  grid-template-columns: minmax(180px, 0.9fr) minmax(320px, 1.6fr);
+}
+
+.expense-list-header .expense-summary-row {
+  justify-content: flex-end;
+}
+
 .expense-detail-header {
   display: block;
 }

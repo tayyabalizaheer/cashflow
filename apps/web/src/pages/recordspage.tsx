@@ -265,10 +265,6 @@ function expenseCurrencySummary(expense: RecordItem) {
   });
 }
 
-function formatRate(rate: number) {
-  return rate > 0 ? Number(rate.toFixed(6)).toString() : "-";
-}
-
 function formatNumber(value: number | string) {
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 2,
@@ -1512,15 +1508,11 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
         {rows.map((expense) => (
           <article className="expense-card expense-card-row" key={expense.id}>
             <Link
-              className="expense-card-header"
+              className="expense-card-header expense-list-header"
               to={`/expenses/${expense.id}`}
             >
               <div>
                 <strong>{expense.name ?? expense.purpose}</strong>
-                <span>
-                  {expense.category?.name ?? "Uncategorized"} |{" "}
-                  {expenseCurrencyCodes(expense).join(", ")}
-                </span>
               </div>
               <div className="expense-summary-row">
                 {expenseCurrencySummary(expense).map((summary) => (
@@ -1532,22 +1524,8 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                     <strong>
                       {formatCurrency(summary.total, summary.currencyCode)}
                     </strong>
-                    <div className="rate-stat-list">
-                      <small>Avg {formatRate(summary.average)}</small>
-                      <small>High {formatRate(summary.high)}</small>
-                      <small>Low {formatRate(summary.low)}</small>
-                    </div>
                   </div>
                 ))}
-              </div>
-              <div className="expense-total">
-                <span>{expense.transactions?.length ?? 0} transaction(s)</span>
-                <strong>
-                  {formatCurrency(
-                    expense.amount ?? 0,
-                    expense.mainCurrency ?? expense.currency,
-                  )}
-                </strong>
               </div>
             </Link>
             <div className="row-menu-wrap">
