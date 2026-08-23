@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { api, formatCurrency } from "../lib/api";
+import { useAuth } from "../components/authprovider";
 import { useCloseActionMenu } from "../lib/usecloseactionmenu";
 
 type UserCurrency = {
@@ -213,6 +214,39 @@ function formatCurrencyValueOnly(value: number | string, currency: string) {
   return formatCurrency(value, currency).replace(currency, "").trim();
 }
 
+function shareBalanceSentence(
+  balance: LoanBalance,
+  loginName: string,
+  personName: string,
+) {
+  const amount = Number(balance.balance);
+  const absoluteBalance = formatCurrency(Math.abs(amount), balance.currency);
+
+  if (amount > 0) {
+    return `${loginName} needs to give ${absoluteBalance} to ${personName}.`;
+  }
+
+  if (amount < 0) {
+    return `${personName} needs to give ${absoluteBalance} to ${loginName}.`;
+  }
+
+  return `The balance is settled for ${balance.currency}.`;
+}
+
+function loanShareText(loan: Loan, loginName: string) {
+  const balances = loan.balances?.length
+    ? loan.balances
+    : [{ currency: "USD", balance: "0" }];
+  const balanceSummary = balances
+    .map((balance) => formatCurrency(balance.balance, balance.currency))
+    .join(", ");
+  const balanceDetails = balances
+    .map((balance) => shareBalanceSentence(balance, loginName, loan.person))
+    .join(" ");
+
+  return `Your balance with ${loginName} is: ${balanceSummary}.\n${balanceDetails}\n\nClick below for details.`;
+}
+
 function TransactionKindPicker({
   name,
   value,
@@ -255,6 +289,7 @@ export function LoanDetailPage() {
   const { loanId, shareId } = useParams();
   const isPublicView = Boolean(shareId);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [showAdd, setShowAdd] = useState(false);
   const [showEditLoan, setShowEditLoan] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -446,15 +481,16 @@ export function LoanDetailPage() {
   async function shareLoanLink() {
     if (!loan) return;
     const url = shareUrl(loan.shareId);
+    const text = loanShareText(loan, user?.fullName.trim() || "the account owner");
     if (navigator.share) {
       await navigator.share({
         title: `${loan.person} loan`,
-        text: "Loan share link",
+        text,
         url,
       });
       return;
     }
-    await navigator.clipboard?.writeText(url);
+    await navigator.clipboard?.writeText(`${text}\n${url}`);
   }
 
   function requestMoveTransactionToTrash(transaction: LoanTransaction) {
