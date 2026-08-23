@@ -511,6 +511,12 @@ export function LoanDetailPage() {
       </section>
     );
 
+  const displayedBalances = loan.balances?.length
+    ? loan.balances
+    : [{ currency: "USD", balance: "0" }];
+  const balanceTotalText = displayedBalances
+    .map((balance) => formatCurrency(balance.balance, balance.currency))
+    .join(" | ");
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const visibleTransactions = [...(loan.transactions ?? [])]
     .filter((transaction) => !transaction.archivedAt)
@@ -603,11 +609,12 @@ export function LoanDetailPage() {
       </div>
 
       <article className="expense-card loan-balance-card">
+        <div className="loan-balance-header">
+          <span>Balance</span>
+          <strong>{balanceTotalText}</strong>
+        </div>
         <div className="loan-balance-grid">
-          {(loan.balances?.length
-            ? loan.balances
-            : [{ currency: "USD", balance: "0" }]
-          ).map((balance) => (
+          {displayedBalances.map((balance) => (
             <div className="loan-balance-item" key={balance.currency}>
               <span>{balance.currency}</span>
               <strong className={balanceClass(balance.balance)}>

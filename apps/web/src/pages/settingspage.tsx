@@ -1,6 +1,16 @@
-import { ArrowRight, Coins, LogOut, Trash2, UserRound } from "lucide-react";
+import {
+  ArrowRight,
+  Coins,
+  LogOut,
+  Monitor,
+  Moon,
+  Sun,
+  Trash2,
+  UserRound,
+} from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../components/authprovider";
+import { type ThemePreference, useTheme } from "../components/themeprovider";
 
 const settingsTiles = [
   {
@@ -23,8 +33,19 @@ const settingsTiles = [
   }
 ];
 
+const themeOptions: Array<{
+  value: ThemePreference;
+  label: string;
+  icon: typeof Monitor;
+}> = [
+  { value: "system", label: "System default", icon: Monitor },
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+];
+
 export function SettingsPage() {
   const { logout } = useAuth();
+  const { themePreference, setThemePreference } = useTheme();
 
   return (
     <section className="page">
@@ -35,6 +56,30 @@ export function SettingsPage() {
         </div>
       </header>
       <div className="settings-tile-grid">
+        <section className="settings-tile theme-settings-tile">
+          <span className="settings-tile-icon">
+            <Monitor size={22} />
+          </span>
+          <div>
+            <strong>Theme</strong>
+            <small>Choose how Cash Flow appears on this device.</small>
+          </div>
+          <div className="theme-option-group" role="group" aria-label="Theme">
+            {themeOptions.map((option) => (
+              <button
+                className={
+                  option.value === themePreference ? "selected" : undefined
+                }
+                key={option.value}
+                type="button"
+                onClick={() => setThemePreference(option.value)}
+              >
+                <option.icon size={16} />
+                <span>{option.label}</span>
+              </button>
+            ))}
+          </div>
+        </section>
         {settingsTiles.map((tile) => (
           <NavLink className="settings-tile" key={tile.to} to={tile.to}>
             <span className="settings-tile-icon">
