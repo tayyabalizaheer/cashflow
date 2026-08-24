@@ -1,10 +1,19 @@
 import fs from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type ResolvedConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
+const appVersion = getAppVersion();
 const buildNumber = getBuildNumber();
+
+function getAppVersion() {
+  const packageJson = JSON.parse(
+    readFileSync(new URL("./package.json", import.meta.url), "utf8"),
+  ) as { version?: string };
+  return packageJson.version ?? "0.0.0";
+}
 
 function getBuildNumber() {
   const rawBuildNumber =
@@ -39,20 +48,20 @@ function buildNumberPlugin(value: string): Plugin {
       const buildInfo = `${JSON.stringify(
         {
           buildNumber: value,
-          builtAt: new Date().toISOString()
+          builtAt: new Date().toISOString(),
         },
         null,
-        2
+        2,
       )}\n`;
 
       await fs.writeFile(path.join(outDir, "build.json"), buildInfo);
       await fs.writeFile(
         path.join(outDir, "manifest-light.webmanifest"),
-        `${JSON.stringify(themedManifest(value, "light"))}\n`
+        `${JSON.stringify(themedManifest(value, "light"))}\n`,
       );
       await fs.writeFile(
         path.join(outDir, "manifest-dark.webmanifest"),
-        `${JSON.stringify(themedManifest(value, "dark"))}\n`
+        `${JSON.stringify(themedManifest(value, "dark"))}\n`,
       );
 
       try {
@@ -69,14 +78,14 @@ function buildNumberPlugin(value: string): Plugin {
             swPath,
             serviceWorker.replace(
               /(precacheAndRoute\(\[[\s\S]*?\],)\{\}\)/,
-              "$1{ignoreURLParametersMatching:[/^[a-zA-Z0-9_.-]+$/]})"
-            )
+              "$1{ignoreURLParametersMatching:[/^[a-zA-Z0-9_.-]+$/]})",
+            ),
           );
         }
       } catch (error) {
         this.warn(`Unable to update service worker cache matching: ${error}`);
       }
-    }
+    },
   };
 }
 
@@ -85,8 +94,8 @@ function appendBuildNumberToHtml(html: string, value: string) {
     /<link rel="manifest" href="\/manifest\.webmanifest">/,
     [
       '<link rel="manifest" href="/manifest-light.webmanifest" media="(prefers-color-scheme: light)">',
-      '<link rel="manifest" href="/manifest-dark.webmanifest" media="(prefers-color-scheme: dark)">'
-    ].join("")
+      '<link rel="manifest" href="/manifest-dark.webmanifest" media="(prefers-color-scheme: dark)">',
+    ].join(""),
   );
 
   return withThemedManifest.replace(
@@ -97,7 +106,7 @@ function appendBuildNumberToHtml(html: string, value: string) {
       }
 
       return `${attribute}=${quote}${url}?${value}${quote}`;
-    }
+    },
   );
 }
 
@@ -119,21 +128,22 @@ function themedManifest(value: string, theme: "light" | "dark") {
         src: `/icons/icon-${theme}-192.png?${value}`,
         sizes: "192x192",
         type: "image/png",
-        purpose: "any maskable"
+        purpose: "any maskable",
       },
       {
         src: `/icons/icon-${theme}-512.png?${value}`,
         sizes: "512x512",
         type: "image/png",
-        purpose: "any maskable"
-      }
-    ]
+        purpose: "any maskable",
+      },
+    ],
   };
 }
 
 export default defineConfig({
   define: {
-    __APP_BUILD_NUMBER__: JSON.stringify(buildNumber)
+    __APP_VERSION__: JSON.stringify(appVersion),
+    __APP_BUILD_NUMBER__: JSON.stringify(buildNumber),
   },
   plugins: [
     react(),
@@ -149,7 +159,7 @@ export default defineConfig({
         "icons/icon-dark-192.png",
         "icons/icon-dark-512.png",
         "brand/logo-wordmark.png",
-        "sql-wasm.wasm"
+        "sql-wasm.wasm",
       ],
       manifest: {
         name: "Cash Flow",
@@ -164,15 +174,15 @@ export default defineConfig({
             src: `/icons/icon-dark-192.png?${buildNumber}`,
             sizes: "192x192",
             type: "image/png",
-            purpose: "any maskable"
+            purpose: "any maskable",
           },
           {
             src: `/icons/icon-dark-512.png?${buildNumber}`,
             sizes: "512x512",
             type: "image/png",
-            purpose: "any maskable"
-          }
-        ]
+            purpose: "any maskable",
+          },
+        ],
       },
       workbox: {
         cleanupOutdatedCaches: true,
@@ -185,23 +195,25 @@ export default defineConfig({
           {
             urlPattern: ({ request }) => request.destination === "document",
             handler: "NetworkFirst",
-            options: { cacheName: "cash-flow-pages" }
+            options: { cacheName: "cash-flow-pages" },
           },
           {
             urlPattern: ({ request, url }) =>
-              request.method === "GET" && url.pathname.startsWith("/api/v1/") && !url.pathname.includes("/auth/"),
+              request.method === "GET" &&
+              url.pathname.startsWith("/api/v1/") &&
+              !url.pathname.includes("/auth/"),
             handler: "NetworkFirst",
             options: {
               cacheName: "cash-flow-readonly-api",
-              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 }
-            }
-          }
-        ]
-      }
+              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 },
+            },
+          },
+        ],
+      },
     }),
-    buildNumberPlugin(buildNumber)
+    buildNumberPlugin(buildNumber),
   ],
   server: {
-    port: 5173
-  }
+    port: 5173,
+  },
 });

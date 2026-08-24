@@ -722,6 +722,20 @@ th {
   grid-template-columns: auto minmax(0, 1fr) minmax(280px, auto);
 }
 
+.app-version-tile {
+  grid-column: 1 / -1;
+  min-height: 92px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.app-version-tile .primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
 .theme-option-group {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2534,6 +2548,15 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
 
   .theme-settings-tile {
     grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .app-version-tile {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .app-version-tile .primary-button {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .theme-option-group {

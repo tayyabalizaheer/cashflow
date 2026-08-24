@@ -11,7 +11,9 @@ export type AppVersionUpdateDetail = {
   updateAvailable: boolean;
 };
 
-export const currentAppVersion = __APP_BUILD_NUMBER__;
+export const appDisplayVersion = __APP_VERSION__;
+export const currentAppBuildNumber = __APP_BUILD_NUMBER__;
+export const currentAppVersion = currentAppBuildNumber;
 
 export function versionedAssetUrl(url: string) {
   if (currentAppVersion === "development") return url;
@@ -74,4 +76,31 @@ export function isLatestAppVersionDismissed(latestVersion: string | null) {
   const dismissedVersion = localStorage.getItem(dismissedVersionKey);
   const versionKey = latestVersion ?? `service-worker:${currentAppVersion}`;
   return dismissedVersion === versionKey;
+}
+
+export async function clearAppCacheAndRestart() {
+  if ("serviceWorker" in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(
+      registrations.map((registration) =>
+        registration.update().catch(() => undefined),
+      ),
+    );
+    await Promise.all(
+      registrations.map((registration) =>
+        registration.unregister().catch(() => false),
+      ),
+    );
+  }
+
+  if ("caches" in window) {
+    const cacheNames = await window.caches.keys();
+    await Promise.all(
+      cacheNames.map((cacheName) => window.caches.delete(cacheName)),
+    );
+  }
+
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.set("appRestart", Date.now().toString());
+  window.location.replace(nextUrl.toString());
 }

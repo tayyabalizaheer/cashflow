@@ -1,9 +1,12 @@
+import { useState } from "react";
 import {
   ArrowRight,
+  BadgeInfo,
   Coins,
   LogOut,
   Monitor,
   Moon,
+  RefreshCw,
   Sun,
   Trash2,
   UserRound,
@@ -11,26 +14,33 @@ import {
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../components/authprovider";
 import { type ThemePreference, useTheme } from "../components/themeprovider";
+import {
+  appDisplayVersion,
+  clearAppCacheAndRestart,
+  currentAppBuildNumber,
+} from "../lib/appversion";
 
 const settingsTiles = [
   {
     to: "/settings/profile",
     title: "Profile settings",
-    description: "Name, email, locale, time zone, theme, and account preferences.",
-    icon: UserRound
+    description:
+      "Name, email, locale, time zone, theme, and account preferences.",
+    icon: UserRound,
   },
   {
     to: "/settings/currencies",
     title: "Currency settings",
-    description: "Choose the currencies you use for expenses, loans, assets, and reports.",
-    icon: Coins
+    description:
+      "Choose the currencies you use for expenses, loans, assets, and reports.",
+    icon: Coins,
   },
   {
     to: "/settings/trash",
     title: "Trash",
     description: "Restore deleted records or remove them permanently.",
-    icon: Trash2
-  }
+    icon: Trash2,
+  },
 ];
 
 const themeOptions: Array<{
@@ -46,6 +56,12 @@ const themeOptions: Array<{
 export function SettingsPage() {
   const { logout } = useAuth();
   const { themePreference, setThemePreference } = useTheme();
+  const [restarting, setRestarting] = useState(false);
+
+  async function updateAndRestart() {
+    setRestarting(true);
+    await clearAppCacheAndRestart();
+  }
 
   return (
     <section className="page">
@@ -80,6 +96,26 @@ export function SettingsPage() {
             ))}
           </div>
         </section>
+        <section className="settings-tile app-version-tile">
+          <span className="settings-tile-icon">
+            <BadgeInfo size={22} />
+          </span>
+          <span>
+            <strong>App version</strong>
+            <small>
+              Version {appDisplayVersion} · Build {currentAppBuildNumber}
+            </small>
+          </span>
+          <button
+            className="primary-button compact"
+            type="button"
+            onClick={updateAndRestart}
+            disabled={restarting}
+          >
+            <RefreshCw size={16} />
+            {restarting ? "Restarting" : "Update and restart"}
+          </button>
+        </section>
         {settingsTiles.map((tile) => (
           <NavLink className="settings-tile" key={tile.to} to={tile.to}>
             <span className="settings-tile-icon">
@@ -92,7 +128,11 @@ export function SettingsPage() {
             <ArrowRight size={18} />
           </NavLink>
         ))}
-        <button className="settings-tile settings-logout-tile" type="button" onClick={logout}>
+        <button
+          className="settings-tile settings-logout-tile"
+          type="button"
+          onClick={logout}
+        >
           <span className="settings-tile-icon danger-icon">
             <LogOut size={22} />
           </span>
