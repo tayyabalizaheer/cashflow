@@ -1,5 +1,10 @@
 import { queueOfflineMutation } from "./offlinequeue";
 import { appVersionHeader, registerApiAppVersion } from "./appversion";
+import {
+  authHeaders,
+  ensureAccessToken,
+  refreshAccessToken,
+} from "./authsession";
 import { API_URL } from "./config";
 import {
   applySuccessfulMutationToLocal,
@@ -7,12 +12,6 @@ import {
   localResponseForPath,
   storeServerResponseForPath,
 } from "./localsqlite";
-import {
-  getAccessToken,
-  sessionExpiredEvent,
-  sessionRestoredEvent,
-  setAccessToken,
-} from "./sessiontoken";
 export { setAccessToken } from "./sessiontoken";
 
 export class ApiClientError extends Error {
@@ -49,6 +48,7 @@ export async function api<T>(
     method !== "GET" &&
     !path.startsWith("/auth/") &&
     !path.startsWith("/sync/");
+  const needsSession = !path.startsWith("/auth/");
 
   if (method === "GET" && !onlineOnly) {
     const local = await localResponseForPath(path);
@@ -56,6 +56,15 @@ export async function api<T>(
       scheduleBackgroundRefresh(path, requestOptions);
       return local as T;
     }
+  }
+
+  if (canQueue && method === "DELETE") {
+    await applySuccessfulMutationToLocal({
+      path,
+      method,
+      ...(typeof options.body === "string" ? { body: options.body } : {}),
+    });
+    notifyLocalDataChanged(path);
   }
 
   if (canQueue && !navigator.onLine) {
@@ -70,7 +79,9 @@ export async function api<T>(
   let response: Response;
 
   try {
-    const accessToken = getAccessToken();
+    if (needsSession) {
+      await ensureAccessToken();
+    }
     response = await fetch(`${API_URL}${path}`, {
       ...requestOptions,
       ...(method === "GET" ? { cache: "no-store" as const } : {}),
@@ -80,7 +91,7 @@ export async function api<T>(
         ...(method === "GET"
           ? { "Cache-Control": "no-cache", Pragma: "no-cache" }
           : {}),
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...authHeaders(),
         ...requestOptions.headers,
       },
     });
@@ -167,12 +178,11 @@ export async function api<T>(
 }
 
 function apiHeaders(requestOptions: RequestInit) {
-  const accessToken = getAccessToken();
   return {
     "Content-Type": "application/json",
     "Cache-Control": "no-cache",
     Pragma: "no-cache",
-    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    ...authHeaders(),
     ...requestOptions.headers,
   };
 }
@@ -196,6 +206,7 @@ function scheduleBackgroundRefresh(path: string, requestOptions: RequestInit) {
 
 async function refreshServerData(path: string, requestOptions: RequestInit) {
   if (await hasPendingLocalMutations()) return false;
+  if (!(await ensureAccessToken())) return false;
 
   const backgroundOptions = { ...requestOptions };
   delete backgroundOptions.signal;
@@ -245,38 +256,6 @@ async function fetchServerJson(path: string, requestOptions: RequestInit) {
     return response.json();
   } catch {
     return null;
-  }
-}
-
-async function refreshAccessToken() {
-  try {
-    const response = await fetch(`${API_URL}/auth/refresh`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-    });
-    if (!response.ok) {
-      setAccessToken(null);
-      if (response.status === 401 || response.status === 403) {
-        window.dispatchEvent(new CustomEvent(sessionExpiredEvent));
-      }
-      return false;
-    }
-    registerApiAppVersion(response.headers.get(appVersionHeader));
-    const body = (await response.json()) as {
-      data?: { accessToken?: string; user?: unknown };
-    };
-    const nextToken = body.data?.accessToken;
-    if (!nextToken) return false;
-    setAccessToken(nextToken);
-    window.dispatchEvent(
-      new CustomEvent(sessionRestoredEvent, {
-        detail: body.data ?? {},
-      }),
-    );
-    return true;
-  } catch {
-    return false;
   }
 }
 

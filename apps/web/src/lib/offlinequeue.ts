@@ -1,11 +1,10 @@
 import { API_URL } from "./config";
 import { appVersionHeader, registerApiAppVersion } from "./appversion";
 import {
-  getAccessToken,
-  sessionExpiredEvent,
-  sessionRestoredEvent,
-  setAccessToken,
-} from "./sessiontoken";
+  authHeaders,
+  ensureAccessToken,
+  refreshAccessToken,
+} from "./authsession";
 import {
   listLocalMutations,
   queueLocalMutation,
@@ -40,7 +39,7 @@ export async function flushOfflineMutations() {
 
 async function flushOfflineMutationsOnce() {
   if (!navigator.onLine) return { pushed: 0 };
-  if (!getAccessToken() && !(await refreshAccessToken())) return { pushed: 0 };
+  if (!(await ensureAccessToken())) return { pushed: 0 };
 
   const mutations = await listOfflineMutations();
   let pushed = 0;
@@ -72,10 +71,9 @@ async function flushOfflineMutationsOnce() {
 }
 
 function mutationHeaders(mutationId: string) {
-  const token = getAccessToken();
   return {
     "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...authHeaders(),
     "Idempotency-Key": mutationId,
   };
 }
@@ -89,36 +87,4 @@ async function sendMutation(mutation: OfflineMutation) {
   });
   registerApiAppVersion(response.headers.get(appVersionHeader));
   return response;
-}
-
-async function refreshAccessToken() {
-  try {
-    const response = await fetch(`${API_URL}/auth/refresh`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-    });
-    if (!response.ok) {
-      setAccessToken(null);
-      if (response.status === 401 || response.status === 403) {
-        window.dispatchEvent(new CustomEvent(sessionExpiredEvent));
-      }
-      return false;
-    }
-    registerApiAppVersion(response.headers.get(appVersionHeader));
-    const body = (await response.json()) as {
-      data?: { accessToken?: string; user?: unknown };
-    };
-    const nextToken = body.data?.accessToken;
-    if (!nextToken) return false;
-    setAccessToken(nextToken);
-    window.dispatchEvent(
-      new CustomEvent(sessionRestoredEvent, {
-        detail: body.data ?? {},
-      }),
-    );
-    return true;
-  } catch {
-    return false;
-  }
 }

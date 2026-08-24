@@ -623,6 +623,20 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
     return { archivedAt: now };
   }
 
+  const expenseDeleteMatch = mutation.path.match(/^\/expenses\/([^/]+)$/);
+  if (mutation.method === "DELETE" && expenseDeleteMatch) {
+    const expenseId = expenseDeleteMatch[1]!;
+    const expense = readModuleRecords(db, "expenses").find(
+      (item) => item.id === expenseId,
+    );
+    if (expense) {
+      const archivedExpense = { ...expense, archivedAt: now, updatedAt: now };
+      upsertLocalRecord(db, "expenses", archivedExpense, now);
+      return archivedExpense;
+    }
+    return { archivedAt: now };
+  }
+
   const assetDeleteMatch = mutation.path.match(/^\/assets\/([^/]+)$/);
   if (mutation.method === "DELETE" && assetDeleteMatch) {
     const assetId = assetDeleteMatch[1]!;
@@ -645,6 +659,24 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       const archivedAsset = { ...asset, archivedAt: now, updatedAt: now };
       upsertLocalRecord(db, "assets", archivedAsset, now);
       return archivedAsset;
+    }
+    return { archivedAt: now };
+  }
+
+  const investmentDeleteMatch = mutation.path.match(/^\/investments\/([^/]+)$/);
+  if (mutation.method === "DELETE" && investmentDeleteMatch) {
+    const investmentId = investmentDeleteMatch[1]!;
+    const investment = readModuleRecords(db, "investments").find(
+      (item) => item.id === investmentId,
+    );
+    if (investment) {
+      const archivedInvestment = {
+        ...investment,
+        archivedAt: now,
+        updatedAt: now,
+      };
+      upsertLocalRecord(db, "investments", archivedInvestment, now);
+      return archivedInvestment;
     }
     return { archivedAt: now };
   }

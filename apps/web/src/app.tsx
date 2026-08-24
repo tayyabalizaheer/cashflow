@@ -27,7 +27,7 @@ function refreshedQueryKeys(path: string) {
 
   if (pathOnly === "/expenses" || pathOnly.startsWith("/expenses/")) {
     keys.push(["expenses"], ["expense-purposes"], ["categories"], ["assets"]);
-    const expenseId = pathOnly.match(/^\/expenses\/([^/]+)$/)?.[1];
+    const expenseId = pathOnly.match(/^\/expenses\/([^/]+)(?:\/|$)/)?.[1];
     if (expenseId) keys.push(["expense", expenseId]);
   } else if (
     pathOnly === "/loans" ||
@@ -35,11 +35,14 @@ function refreshedQueryKeys(path: string) {
     pathOnly.startsWith("/public/loans/")
   ) {
     keys.push(["loans"], ["loan-purposes"]);
-    const loanId = pathOnly.match(/^\/loans\/([^/]+)$/)?.[1];
+    const loanId = pathOnly.match(/^\/loans\/([^/]+)(?:\/|$)/)?.[1];
     if (loanId) keys.push(["loan", loanId]);
-  } else if (pathOnly === "/investments") {
+  } else if (
+    pathOnly === "/investments" ||
+    pathOnly.startsWith("/investments/")
+  ) {
     keys.push(["investments"]);
-  } else if (pathOnly === "/assets") {
+  } else if (pathOnly === "/assets" || pathOnly.startsWith("/assets/")) {
     keys.push(["assets"]);
   } else if (pathOnly === "/categories") {
     keys.push(["categories"]);
@@ -47,6 +50,8 @@ function refreshedQueryKeys(path: string) {
     keys.push(["user-currencies"]);
   } else if (pathOnly === "/currencies") {
     keys.push(["currencies"]);
+  } else if (pathOnly.startsWith("/trash/") || pathOnly === "/trash") {
+    keys.push(["trash"], ["expenses"], ["loans"], ["investments"], ["assets"]);
   }
 
   return keys;

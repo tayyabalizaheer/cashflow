@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { ApiClientError, api, setAccessToken } from "../lib/api";
+import { api, setAccessToken } from "../lib/api";
+import { restoreSessionFromRefreshToken } from "../lib/authsession";
 import { flushOfflineMutations } from "../lib/offlinequeue";
 import {
   bootstrapLocalData,
@@ -14,6 +15,18 @@ type User = {
   fullName: string;
   email: string;
 };
+
+function isUser(value: unknown): value is User {
+  if (!value || typeof value !== "object") return false;
+  return (
+    "id" in value &&
+    "fullName" in value &&
+    "email" in value &&
+    typeof value.id === "string" &&
+    typeof value.fullName === "string" &&
+    typeof value.email === "string"
+  );
+}
 
 type AuthContextValue = {
   user: User | null;
@@ -107,28 +120,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     async function refreshSession() {
-      try {
-        const response = await api<{
-          data: { user: User; accessToken: string };
-        }>("/auth/refresh", {
-          method: "POST",
-        });
-        if (active) {
-          receiveSession(response.data.user, response.data.accessToken);
-          setLocalAvailable(await hasLocalData());
-        }
-      } catch (error) {
-        if (active) {
-          clearSession({
-            requireLogin:
-              error instanceof ApiClientError &&
-              (error.code === "UNAUTHORIZED" || error.code === "FORBIDDEN"),
-          });
-          setLocalAvailable(await hasLocalData());
-        }
-      } finally {
-        if (active) setInitializing(false);
+      const result = await restoreSessionFromRefreshToken();
+      if (!active) return;
+
+      if (result.status === "restored" && isUser(result.user)) {
+        receiveSession(result.user, result.accessToken);
+        setLocalAvailable(await hasLocalData());
+      } else {
+        clearSession({ requireLogin: result.status === "expired" });
+        setLocalAvailable(await hasLocalData());
       }
+
+      if (active) setInitializing(false);
     }
 
     void refreshSession();

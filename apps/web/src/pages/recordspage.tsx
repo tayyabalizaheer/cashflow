@@ -900,6 +900,12 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     setConfirmAsset(asset);
   }
 
+  function moveAssetToTrash(assetId: string) {
+    setConfirmAsset(null);
+    setOpenActionMenu(null);
+    deleteAsset.mutate(assetId);
+  }
+
   if (module === "assets") {
     const selectedExpense = assetExpenses.find(
       (item) => item.id === assetForm.expenseId,
@@ -1178,7 +1184,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                   className="primary-button danger-button"
                   type="button"
                   disabled={deleteAsset.isPending}
-                  onClick={() => deleteAsset.mutate(confirmAsset.id)}
+                  onClick={() => moveAssetToTrash(confirmAsset.id)}
                 >
                   Move to trash
                 </button>

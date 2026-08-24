@@ -164,6 +164,12 @@ export function LoansPage() {
     });
   }
 
+  function moveLoanToTrash(loanId: string) {
+    setLoanToDelete(null);
+    setActiveMenuId(null);
+    deleteLoan.mutate(loanId);
+  }
+
   async function copyShareLink(shareId: string) {
     await navigator.clipboard?.writeText(shareUrl(shareId));
     setActiveMenuId(null);
@@ -427,7 +433,7 @@ export function LoansPage() {
                 className="primary-button danger-button"
                 type="button"
                 disabled={deleteLoan.isPending}
-                onClick={() => deleteLoan.mutate(loanToDelete.id)}
+                onClick={() => moveLoanToTrash(loanToDelete.id)}
               >
                 Move to Trash
               </button>
