@@ -93,6 +93,10 @@ function LocalDataRefreshListener() {
       invalidateKeys(allLocalQueryKeys());
     };
 
+    const onOnlineSyncChecked = () => {
+      invalidateKeys(allLocalQueryKeys());
+    };
+
     window.addEventListener(
       "cash-flow:local-data-refreshed",
       onLocalDataRefreshed,
@@ -100,6 +104,10 @@ function LocalDataRefreshListener() {
     window.addEventListener(
       "cash-flow:offline-sync-flushed",
       onOfflineSyncFlushed,
+    );
+    window.addEventListener(
+      "cash-flow:online-sync-checked",
+      onOnlineSyncChecked,
     );
     return () => {
       window.removeEventListener(
@@ -109,6 +117,10 @@ function LocalDataRefreshListener() {
       window.removeEventListener(
         "cash-flow:offline-sync-flushed",
         onOfflineSyncFlushed,
+      );
+      window.removeEventListener(
+        "cash-flow:online-sync-checked",
+        onOnlineSyncChecked,
       );
     };
   }, [queryClient]);

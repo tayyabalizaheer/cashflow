@@ -149,27 +149,32 @@ function scheduleBackgroundRefresh(path: string, requestOptions: RequestInit) {
 
   recentBackgroundRefreshes.set(path, Date.now());
   pendingBackgroundRefreshes.add(path);
-  void refreshServerData(path, requestOptions).finally(() => {
-    pendingBackgroundRefreshes.delete(path);
-  });
+  void refreshServerData(path, requestOptions)
+    .then((refreshed) => {
+      if (!refreshed) recentBackgroundRefreshes.delete(path);
+    })
+    .finally(() => {
+      pendingBackgroundRefreshes.delete(path);
+    });
 }
 
 async function refreshServerData(path: string, requestOptions: RequestInit) {
-  if (await hasPendingLocalMutations()) return;
+  if (await hasPendingLocalMutations()) return false;
 
   const backgroundOptions = { ...requestOptions };
   delete backgroundOptions.signal;
   const body = await fetchServerJson(path, backgroundOptions);
-  if (!body) return;
+  if (!body) return false;
 
   const stored = await storeServerResponseForPath(path, body);
-  if (!stored) return;
+  if (!stored) return false;
 
   window.dispatchEvent(
     new CustomEvent("cash-flow:local-data-refreshed", {
       detail: { path },
     }),
   );
+  return true;
 }
 
 async function fetchServerJson(path: string, requestOptions: RequestInit) {

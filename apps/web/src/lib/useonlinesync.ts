@@ -5,11 +5,19 @@ export function useOnlineSync(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
 
-    void flushOfflineMutations();
     const sync = () => {
-      void flushOfflineMutations();
+      void flushOfflineMutations()
+        .catch(() => ({ pushed: 0 }))
+        .then((result) => {
+          window.dispatchEvent(
+            new CustomEvent("cash-flow:online-sync-checked", {
+              detail: result,
+            }),
+          );
+        });
     };
 
+    sync();
     window.addEventListener("online", sync);
     const interval = window.setInterval(sync, 60_000);
 
