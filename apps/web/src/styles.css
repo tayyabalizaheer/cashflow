@@ -2433,6 +2433,23 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
+  .expense-list-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .expense-list-card .expense-list-header {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .expense-list-card .row-menu-wrap {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    justify-self: end;
+  }
+
   .expense-meta-row,
   .currency-summary-line,
   .rate-row span,

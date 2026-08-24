@@ -1506,7 +1506,10 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       ) : null}
       <div className="expense-list">
         {rows.map((expense) => (
-          <article className="expense-card expense-card-row" key={expense.id}>
+          <article
+            className="expense-card expense-card-row expense-list-card"
+            key={expense.id}
+          >
             <Link
               className="expense-card-header expense-list-header"
               to={`/expenses/${expense.id}`}
