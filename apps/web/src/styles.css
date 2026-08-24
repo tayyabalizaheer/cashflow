@@ -973,6 +973,11 @@ th {
   gap: 12px;
 }
 
+.investment-list {
+  display: grid;
+  gap: 12px;
+}
+
 .asset-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -985,7 +990,26 @@ th {
   box-shadow: 0 14px 38px rgba(23, 35, 34, 0.08);
 }
 
+.investment-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 14px 38px rgba(23, 35, 34, 0.08);
+}
+
 .asset-card-main {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.6fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.investment-card-main {
   display: grid;
   grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.6fr);
   gap: 14px;
@@ -1012,6 +1036,12 @@ th {
 }
 
 .asset-value-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.investment-value-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 10px;
@@ -2486,6 +2516,7 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
   .asset-total-strip,
   .asset-card,
   .asset-card-main,
+  .investment-card-main,
   .expense-card-row,
   .expense-card-header,
   .expense-detail-summary,
@@ -2496,6 +2527,40 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
 
   .transaction-row.loan-transaction-row {
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .asset-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .investment-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .asset-card-main {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .investment-card-main {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .asset-card .row-menu-wrap {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    justify-self: end;
+  }
+
+  .investment-card .row-menu-wrap {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    justify-self: end;
   }
 
   .expense-list-card {

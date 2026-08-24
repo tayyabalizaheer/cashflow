@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
+  Eye,
+  Pencil,
   MoreVertical,
   Plus,
   Search,
@@ -67,12 +69,19 @@ type RecordItem = {
   amountInvested?: string;
   value?: string;
   currency: string;
+  quantity?: string | null;
+  nav?: string | null;
+  currentValue?: string | null;
+  purchaseDate?: string | null;
+  latestValuationDate?: string | null;
+  notes?: string | null;
   stockFundName?: string | null;
   mainCurrency?: string | null;
   expenseDate?: string;
   acquisitionDate?: string | null;
   valuationDate?: string | null;
   zakatEligible?: boolean;
+  zakatPercentage?: string | number | null;
   sourceExpenseId?: string | null;
   sourceCurrency?: string | null;
   category?: Category;
@@ -224,6 +233,10 @@ const config = {
 
 const todayInputValue = () => new Date().toISOString().slice(0, 10);
 
+function dateInputValue(value?: string | null) {
+  return value ? value.slice(0, 10) : todayInputValue();
+}
+
 function timeValue(value?: string | null) {
   if (!value) return 0;
   const time = new Date(value).getTime();
@@ -365,17 +378,38 @@ function assetDate(asset: RecordItem) {
   return date ? new Date(date).toLocaleDateString() : "";
 }
 
+function investmentTitle(investment: RecordItem) {
+  return investment.name ?? investment.stockFundName ?? "Investment";
+}
+
+function investmentValue(investment: RecordItem) {
+  return investment.currentValue || investment.amountInvested || "0";
+}
+
+function investmentDate(investment: RecordItem) {
+  const date = investment.latestValuationDate ?? investment.purchaseDate;
+  return date ? new Date(date).toLocaleDateString() : "";
+}
+
+function detailDate(value?: string | null) {
+  return value ? new Date(value).toLocaleDateString() : "-";
+}
+
 function AssetList({
   assets,
   emptyLabel,
   openActionMenu,
   onToggleActions,
+  onShowDetails,
+  onEdit,
   onRequestDelete,
 }: {
   assets: AssetDisplayItem[];
   emptyLabel: string;
   openActionMenu: string | null;
   onToggleActions: (id: string) => void;
+  onShowDetails: (asset: AssetDisplayItem) => void;
+  onEdit: (asset: AssetDisplayItem) => void;
   onRequestDelete: (asset: AssetDisplayItem) => void;
 }) {
   if (assets.length === 0) {
@@ -416,7 +450,112 @@ function AssetList({
             </button>
             {openActionMenu === asset.groupKey ? (
               <div className="action-menu">
+                <button type="button" onClick={() => onShowDetails(asset)}>
+                  <Eye size={15} />
+                  Details
+                </button>
+                <button type="button" onClick={() => onEdit(asset)}>
+                  <Pencil size={15} />
+                  Edit
+                </button>
                 <button type="button" onClick={() => onRequestDelete(asset)}>
+                  <Trash2 size={15} />
+                  Move to trash
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function InvestmentList({
+  investments,
+  emptyLabel,
+  openActionMenu,
+  onToggleActions,
+  onShowDetails,
+  onEdit,
+  onRequestDelete,
+}: {
+  investments: RecordItem[];
+  emptyLabel: string;
+  openActionMenu: string | null;
+  onToggleActions: (id: string) => void;
+  onShowDetails: (investment: RecordItem) => void;
+  onEdit: (investment: RecordItem) => void;
+  onRequestDelete: (investment: RecordItem) => void;
+}) {
+  if (investments.length === 0) {
+    return <div className="empty-state">{emptyLabel}</div>;
+  }
+
+  return (
+    <div className="investment-list">
+      {investments.map((investment) => (
+        <article className="investment-card" key={investment.id}>
+          <div className="investment-card-main">
+            <div className="asset-title-block">
+              <strong>{investmentTitle(investment)}</strong>
+              <span>
+                {investment.type ?? "Investment"}
+                {investmentDate(investment)
+                  ? ` | ${investmentDate(investment)}`
+                  : ""}
+              </span>
+            </div>
+            <div className="investment-value-grid">
+              <div className="asset-value-cell">
+                <span>Cost</span>
+                <strong>
+                  {formatAmountWithCode(
+                    investment.amountInvested ?? "0",
+                    investment.currency,
+                  )}
+                </strong>
+              </div>
+              <div className="asset-value-cell">
+                <span>Value</span>
+                <strong>
+                  {formatAmountWithCode(
+                    investmentValue(investment),
+                    investment.currency,
+                  )}
+                </strong>
+              </div>
+              {investment.quantity ? (
+                <div className="asset-value-cell">
+                  <span>Quantity</span>
+                  <strong>{formatNumber(investment.quantity)}</strong>
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <div className="row-menu-wrap">
+            <button
+              className="icon-button"
+              type="button"
+              title="Actions"
+              onClick={() => onToggleActions(investment.id)}
+            >
+              <MoreVertical size={16} />
+            </button>
+            {openActionMenu === investment.id ? (
+              <div className="action-menu">
+                <button type="button" onClick={() => onShowDetails(investment)}>
+                  <Eye size={15} />
+                  Details
+                </button>
+                <button type="button" onClick={() => onEdit(investment)}>
+                  <Pencil size={15} />
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onRequestDelete(investment)}
+                >
                   <Trash2 size={15} />
                   Move to trash
                 </button>
@@ -520,6 +659,19 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
   useCloseActionMenu(Boolean(openActionMenu), () => setOpenActionMenu(null));
   const [confirmExpense, setConfirmExpense] = useState<RecordItem | null>(null);
   const [confirmAsset, setConfirmAsset] = useState<AssetDisplayItem | null>(
+    null,
+  );
+  const [assetDetail, setAssetDetail] = useState<AssetDisplayItem | null>(null);
+  const [editingAsset, setEditingAsset] = useState<AssetDisplayItem | null>(
+    null,
+  );
+  const [confirmInvestment, setConfirmInvestment] = useState<RecordItem | null>(
+    null,
+  );
+  const [investmentDetail, setInvestmentDetail] = useState<RecordItem | null>(
+    null,
+  );
+  const [editingInvestment, setEditingInvestment] = useState<RecordItem | null>(
     null,
   );
   const [undoExpense, setUndoExpense] = useState<RecordItem | null>(null);
@@ -628,6 +780,25 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       }));
     },
   });
+  const updateAsset = useMutation({
+    mutationFn: ({
+      assetId,
+      payload,
+    }: {
+      assetId: string;
+      payload: Record<string, unknown>;
+    }) =>
+      api<{ data: RecordItem }>(`/assets/${assetId}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      setShowAssetForm(false);
+      setEditingAsset(null);
+    },
+  });
   const createInvestment = useMutation({
     mutationFn: (payload: Record<string, unknown>) =>
       api<{ data: RecordItem }>("/investments", {
@@ -654,6 +825,25 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       }));
     },
   });
+  const updateInvestment = useMutation({
+    mutationFn: ({
+      investmentId,
+      payload,
+    }: {
+      investmentId: string;
+      payload: Record<string, unknown>;
+    }) =>
+      api<{ data: RecordItem }>(`/investments/${investmentId}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["investments"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      setShowInvestmentForm(false);
+      setEditingInvestment(null);
+    },
+  });
   const deleteExpense = useMutation({
     mutationFn: (expenseId: string) =>
       api<void>(`/expenses/${expenseId}`, { method: "DELETE" }),
@@ -667,6 +857,22 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setConfirmAsset(null);
       setOpenActionMenu(null);
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
+    },
+  });
+  const deleteInvestment = useMutation({
+    mutationFn: (investmentId: string) =>
+      api<void>(`/investments/${investmentId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["investments"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      setConfirmInvestment(null);
+      setOpenActionMenu(null);
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["investments"] });
     },
   });
 
@@ -809,6 +1015,30 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
 
   function submitAsset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (editingAsset) {
+      updateAsset.mutate({
+        assetId: editingAsset.id,
+        payload: {
+          name: assetForm.name,
+          assetType: editingAsset.assetType ?? "Other",
+          value: assetForm.value,
+          currency: assetForm.currency,
+          ...(editingAsset.sourceExpenseId
+            ? {
+                sourceExpenseId: editingAsset.sourceExpenseId,
+                sourceCurrency: assetForm.currency,
+              }
+            : {}),
+          acquisitionDate: assetForm.date,
+          valuationDate: assetForm.date,
+          zakatEligible: assetForm.zakatEligible,
+          zakatPercentage: editingAsset.zakatPercentage ?? 100,
+          notes: editingAsset.notes ?? undefined,
+        },
+      });
+      return;
+    }
+
     if (assetForm.mode === "expense") {
       const expense = assetExpenses.find(
         (item) => item.id === assetForm.expenseId,
@@ -852,7 +1082,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       investmentForm.sourceMode === "stock"
         ? investmentForm.stockFundName.trim()
         : "";
-    createInvestment.mutate({
+    const payload = {
       type:
         investmentForm.sourceMode === "stock" ? "Stock" : investmentForm.type,
       name:
@@ -870,7 +1100,17 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       notes: investmentForm.notes || undefined,
       zakatEligible: investmentForm.zakatEligible,
       zakatPercentage: 100,
-    });
+    };
+
+    if (editingInvestment) {
+      updateInvestment.mutate({
+        investmentId: editingInvestment.id,
+        payload,
+      });
+      return;
+    }
+
+    createInvestment.mutate(payload);
   }
 
   function confirmDeleteExpense(expense: RecordItem) {
@@ -897,10 +1137,141 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     setConfirmAsset(asset);
   }
 
-  function moveAssetToTrash(assetId: string) {
+  function showAssetDetails(asset: AssetDisplayItem) {
+    setOpenActionMenu(null);
+    setAssetDetail(asset);
+  }
+
+  function startAddAsset() {
+    setEditingAsset(null);
+    setAssetForm((current) => ({
+      ...current,
+      mode: "manual",
+      name: "",
+      date: todayInputValue(),
+      value: "",
+      expenseId: "",
+      zakatEligible: false,
+    }));
+    setShowAssetForm(true);
+  }
+
+  function startEditAsset(asset: AssetDisplayItem) {
+    setOpenActionMenu(null);
+    setEditingAsset(asset);
+    setAssetForm({
+      mode: "manual",
+      name: asset.name ?? "Asset",
+      date: dateInputValue(asset.valuationDate ?? asset.acquisitionDate),
+      value: String(asset.value ?? "0"),
+      currency: asset.currency,
+      zakatEligible: Boolean(asset.zakatEligible),
+      expenseId: "",
+    });
+    setShowAssetForm(true);
+  }
+
+  function closeAssetForm() {
+    setShowAssetForm(false);
+    setEditingAsset(null);
+  }
+
+  function removeAssetFromList(asset: AssetDisplayItem) {
+    queryClient.setQueryData<{ data: RecordItem[] }>(["assets"], (current) =>
+      current
+        ? {
+            ...current,
+            data: current.data.filter((item) =>
+              asset.sourceExpenseId
+                ? item.sourceExpenseId !== asset.sourceExpenseId
+                : item.id !== asset.id,
+            ),
+          }
+        : current,
+    );
+  }
+
+  function moveAssetToTrash(asset: AssetDisplayItem) {
     setConfirmAsset(null);
     setOpenActionMenu(null);
-    deleteAsset.mutate(assetId);
+    removeAssetFromList(asset);
+    deleteAsset.mutate(asset.id);
+  }
+
+  function showInvestmentDetails(investment: RecordItem) {
+    setOpenActionMenu(null);
+    setInvestmentDetail(investment);
+  }
+
+  function startAddInvestment() {
+    setEditingInvestment(null);
+    setInvestmentForm((current) => ({
+      ...current,
+      sourceMode: "stock",
+      type: "",
+      name: "",
+      stockFundName: "",
+      amountInvested: "",
+      quantity: "",
+      nav: "",
+      currentValue: "",
+      purchaseDate: todayInputValue(),
+      zakatEligible: false,
+      notes: "",
+    }));
+    setShowInvestmentForm(true);
+  }
+
+  function startEditInvestment(investment: RecordItem) {
+    setOpenActionMenu(null);
+    setEditingInvestment(investment);
+    setInvestmentForm({
+      sourceMode: investment.stockFundName ? "stock" : "manual",
+      type: investment.type ?? "",
+      name: investment.name ?? investment.stockFundName ?? "",
+      stockFundName: investment.stockFundName ?? "",
+      amountInvested: String(investment.amountInvested ?? ""),
+      currency: investment.currency,
+      quantity: String(investment.quantity ?? ""),
+      nav: String(investment.nav ?? ""),
+      currentValue: String(investment.currentValue ?? ""),
+      purchaseDate: dateInputValue(
+        investment.latestValuationDate ?? investment.purchaseDate,
+      ),
+      zakatEligible: Boolean(investment.zakatEligible),
+      notes: investment.notes ?? "",
+    });
+    setShowInvestmentForm(true);
+  }
+
+  function closeInvestmentForm() {
+    setShowInvestmentForm(false);
+    setEditingInvestment(null);
+  }
+
+  function requestDeleteInvestment(investment: RecordItem) {
+    setOpenActionMenu(null);
+    setConfirmInvestment(investment);
+  }
+
+  function removeInvestmentFromList(investment: RecordItem) {
+    queryClient.setQueryData<{ data: RecordItem[] }>(
+      ["investments"],
+      (current) =>
+        current
+          ? {
+              ...current,
+              data: current.data.filter((item) => item.id !== investment.id),
+            }
+          : current,
+    );
+  }
+
+  function moveInvestmentToTrash(investment: RecordItem) {
+    setConfirmInvestment(null);
+    setOpenActionMenu(null);
+    removeInvestmentFromList(investment);
+    deleteInvestment.mutate(investment.id);
   }
 
   if (module === "assets") {
@@ -918,7 +1289,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
         <RecordHeader
           title="Assets"
           addTitle="Add asset"
-          onAdd={() => setShowAssetForm(true)}
+          onAdd={startAddAsset}
           onFilter={() => setShowFilters((value) => !value)}
         />
         <SearchRow />
@@ -950,7 +1321,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
             className="modal-backdrop"
             role="dialog"
             aria-modal="true"
-            aria-label="Add asset"
+            aria-label={editingAsset ? "Edit asset" : "Add asset"}
           >
             <form
               className="modal-panel form-modal asset-entry asset-modal"
@@ -958,39 +1329,43 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
             >
               <div className="modal-header">
                 <div>
-                  <p className="eyebrow">New asset</p>
-                  <h2>Add asset</h2>
+                  <p className="eyebrow">
+                    {editingAsset ? "Edit asset" : "New asset"}
+                  </p>
+                  <h2>{editingAsset ? "Edit asset" : "Add asset"}</h2>
                 </div>
                 <button
                   className="icon-button"
                   type="button"
                   title="Close"
-                  onClick={() => setShowAssetForm(false)}
+                  onClick={closeAssetForm}
                 >
                   <X size={16} />
                 </button>
               </div>
               <div className="modal-form-body">
-                <div
-                  className="segmented asset-source-tabs"
-                  role="tablist"
-                  aria-label="Asset source"
-                >
-                  <button
-                    className={assetForm.mode === "manual" ? "selected" : ""}
-                    type="button"
-                    onClick={() => updateAssetForm("mode", "manual")}
+                {!editingAsset ? (
+                  <div
+                    className="segmented asset-source-tabs"
+                    role="tablist"
+                    aria-label="Asset source"
                   >
-                    Manual
-                  </button>
-                  <button
-                    className={assetForm.mode === "expense" ? "selected" : ""}
-                    type="button"
-                    onClick={() => updateAssetForm("mode", "expense")}
-                  >
-                    From expense
-                  </button>
-                </div>
+                    <button
+                      className={assetForm.mode === "manual" ? "selected" : ""}
+                      type="button"
+                      onClick={() => updateAssetForm("mode", "manual")}
+                    >
+                      Manual
+                    </button>
+                    <button
+                      className={assetForm.mode === "expense" ? "selected" : ""}
+                      type="button"
+                      onClick={() => updateAssetForm("mode", "expense")}
+                    >
+                      From expense
+                    </button>
+                  </div>
+                ) : null}
                 {assetForm.mode === "manual" ? (
                   <>
                     <label>
@@ -1108,12 +1483,15 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                 {createAsset.error ? (
                   <div className="form-error">{createAsset.error.message}</div>
                 ) : null}
+                {updateAsset.error ? (
+                  <div className="form-error">{updateAsset.error.message}</div>
+                ) : null}
               </div>
               <div className="confirm-actions">
                 <button
                   className="secondary-button"
                   type="button"
-                  onClick={() => setShowAssetForm(false)}
+                  onClick={closeAssetForm}
                 >
                   Cancel
                 </button>
@@ -1121,6 +1499,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                   className="primary-button"
                   disabled={
                     createAsset.isPending ||
+                    updateAsset.isPending ||
                     (assetForm.mode === "manual" &&
                       (!assetForm.name ||
                         !assetForm.date ||
@@ -1129,7 +1508,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                     (assetForm.mode === "expense" && !assetForm.expenseId)
                   }
                 >
-                  Save asset
+                  {editingAsset ? "Save changes" : "Save asset"}
                 </button>
               </div>
             </form>
@@ -1148,8 +1527,67 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
           onToggleActions={(id) =>
             setOpenActionMenu((current) => (current === id ? null : id))
           }
+          onShowDetails={showAssetDetails}
+          onEdit={startEditAsset}
           onRequestDelete={requestDeleteAsset}
         />
+        {assetDetail ? (
+          <div
+            className="modal-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Asset details"
+          >
+            <section className="modal-panel confirm-panel">
+              <div className="modal-header">
+                <div>
+                  <p className="eyebrow">Asset details</p>
+                  <h2>{assetDetail.name ?? "Asset"}</h2>
+                </div>
+                <button
+                  className="icon-button"
+                  type="button"
+                  title="Close"
+                  onClick={() => setAssetDetail(null)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <dl className="detail-list">
+                <div>
+                  <dt>Type</dt>
+                  <dd>{assetDetail.assetType ?? "Asset"}</dd>
+                </div>
+                <div>
+                  <dt>Date</dt>
+                  <dd>
+                    {detailDate(
+                      assetDetail.valuationDate ?? assetDetail.acquisitionDate,
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Values</dt>
+                  <dd>
+                    {assetDetail.currencyValues
+                      .map((line) =>
+                        formatAmountWithCode(line.value, line.currency),
+                      )
+                      .join(", ")}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Zakatable</dt>
+                  <dd>{assetDetail.zakatEligible ? "Yes" : "No"}</dd>
+                </div>
+                <div>
+                  <dt>Notes</dt>
+                  <dd>{assetDetail.notes || "No notes"}</dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+        ) : null}
         {confirmAsset ? (
           <div
             className="modal-backdrop"
@@ -1181,7 +1619,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                   className="primary-button danger-button"
                   type="button"
                   disabled={deleteAsset.isPending}
-                  onClick={() => moveAssetToTrash(confirmAsset.id)}
+                  onClick={() => moveAssetToTrash(confirmAsset)}
                 >
                   Move to trash
                 </button>
@@ -1199,7 +1637,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
         <RecordHeader
           title="Investments"
           addTitle="Add investment"
-          onAdd={() => setShowInvestmentForm(true)}
+          onAdd={startAddInvestment}
           onFilter={() => setShowFilters((value) => !value)}
         />
         <SearchRow />
@@ -1214,7 +1652,9 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
             className="modal-backdrop"
             role="dialog"
             aria-modal="true"
-            aria-label="Add investment"
+            aria-label={
+              editingInvestment ? "Edit investment" : "Add investment"
+            }
           >
             <form
               className="modal-panel form-modal"
@@ -1222,14 +1662,18 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
             >
               <div className="modal-header">
                 <div>
-                  <p className="eyebrow">New investment</p>
-                  <h2>Add investment</h2>
+                  <p className="eyebrow">
+                    {editingInvestment ? "Edit investment" : "New investment"}
+                  </p>
+                  <h2>
+                    {editingInvestment ? "Edit investment" : "Add investment"}
+                  </h2>
                 </div>
                 <button
                   className="icon-button"
                   type="button"
                   title="Close"
-                  onClick={() => setShowInvestmentForm(false)}
+                  onClick={closeInvestmentForm}
                 >
                   <X size={16} />
                 </button>
@@ -1434,12 +1878,17 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                     {createInvestment.error.message}
                   </div>
                 ) : null}
+                {updateInvestment.error ? (
+                  <div className="form-error">
+                    {updateInvestment.error.message}
+                  </div>
+                ) : null}
               </div>
               <div className="confirm-actions">
                 <button
                   className="secondary-button"
                   type="button"
-                  onClick={() => setShowInvestmentForm(false)}
+                  onClick={closeInvestmentForm}
                 >
                   Cancel
                 </button>
@@ -1447,6 +1896,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                   className="primary-button"
                   disabled={
                     createInvestment.isPending ||
+                    updateInvestment.isPending ||
                     (investmentForm.sourceMode === "stock"
                       ? !investmentForm.stockFundName
                       : !investmentForm.type.trim() ||
@@ -1455,7 +1905,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                     !investmentForm.currency
                   }
                 >
-                  Save investment
+                  {editingInvestment ? "Save changes" : "Save investment"}
                 </button>
               </div>
             </form>
@@ -1467,11 +1917,141 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
         {isLoading ? (
           <div className="empty-state">Loading investments...</div>
         ) : null}
-        <RecordTable
-          columns={page.columns}
-          rows={rows}
+        <InvestmentList
+          investments={rows}
           emptyLabel={page.empty}
+          openActionMenu={openActionMenu}
+          onToggleActions={(id) =>
+            setOpenActionMenu((current) => (current === id ? null : id))
+          }
+          onShowDetails={showInvestmentDetails}
+          onEdit={startEditInvestment}
+          onRequestDelete={requestDeleteInvestment}
         />
+        {investmentDetail ? (
+          <div
+            className="modal-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Investment details"
+          >
+            <section className="modal-panel confirm-panel">
+              <div className="modal-header">
+                <div>
+                  <p className="eyebrow">Investment details</p>
+                  <h2>{investmentTitle(investmentDetail)}</h2>
+                </div>
+                <button
+                  className="icon-button"
+                  type="button"
+                  title="Close"
+                  onClick={() => setInvestmentDetail(null)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <dl className="detail-list">
+                <div>
+                  <dt>Type</dt>
+                  <dd>{investmentDetail.type ?? "Investment"}</dd>
+                </div>
+                <div>
+                  <dt>Stock link</dt>
+                  <dd>{investmentDetail.stockFundName ?? "Manual entry"}</dd>
+                </div>
+                <div>
+                  <dt>Cost</dt>
+                  <dd>
+                    {formatAmountWithCode(
+                      investmentDetail.amountInvested ?? "0",
+                      investmentDetail.currency,
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Current value</dt>
+                  <dd>
+                    {formatAmountWithCode(
+                      investmentValue(investmentDetail),
+                      investmentDetail.currency,
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Quantity</dt>
+                  <dd>
+                    {investmentDetail.quantity
+                      ? formatNumber(investmentDetail.quantity)
+                      : "-"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>NAV</dt>
+                  <dd>
+                    {investmentDetail.nav
+                      ? formatNumber(investmentDetail.nav)
+                      : "-"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Date</dt>
+                  <dd>
+                    {detailDate(
+                      investmentDetail.latestValuationDate ??
+                        investmentDetail.purchaseDate,
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Zakatable</dt>
+                  <dd>{investmentDetail.zakatEligible ? "Yes" : "No"}</dd>
+                </div>
+                <div>
+                  <dt>Notes</dt>
+                  <dd>{investmentDetail.notes || "No notes"}</dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+        ) : null}
+        {confirmInvestment ? (
+          <div
+            className="modal-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Move investment to trash"
+          >
+            <section className="modal-panel confirm-panel">
+              <div>
+                <p className="eyebrow">Move to trash</p>
+                <h2>{investmentTitle(confirmInvestment)}</h2>
+              </div>
+              <p>This investment will move to trash immediately.</p>
+              {deleteInvestment.error ? (
+                <div className="form-error">
+                  {deleteInvestment.error.message}
+                </div>
+              ) : null}
+              <div className="confirm-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => setConfirmInvestment(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="primary-button danger-button"
+                  type="button"
+                  disabled={deleteInvestment.isPending}
+                  onClick={() => moveInvestmentToTrash(confirmInvestment)}
+                >
+                  Move to trash
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
       </section>
     );
   }

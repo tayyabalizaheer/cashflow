@@ -965,6 +965,94 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
     return localInvestment;
   }
 
+  const assetUpdateMatch = mutation.path.match(/^\/assets\/([^/]+)$/);
+  if (mutation.method === "PUT" && assetUpdateMatch) {
+    const assetId = assetUpdateMatch[1]!;
+    const existingAsset = readModuleRecords(db, "assets").find(
+      (item) => item.id === assetId,
+    );
+    const localAsset = {
+      ...(existingAsset ?? {}),
+      id: assetId,
+      name: String(payload.name ?? existingAsset?.name ?? ""),
+      assetType: String(
+        payload.assetType ?? existingAsset?.assetType ?? "Other",
+      ),
+      value: payload.value ?? existingAsset?.value ?? "0",
+      currency: payload.currency ?? existingAsset?.currency,
+      sourceExpenseId:
+        payload.sourceExpenseId ?? existingAsset?.sourceExpenseId ?? null,
+      sourceCurrency:
+        payload.sourceCurrency ??
+        payload.currency ??
+        existingAsset?.sourceCurrency ??
+        null,
+      acquisitionDate:
+        payload.acquisitionDate ?? existingAsset?.acquisitionDate ?? null,
+      valuationDate:
+        payload.valuationDate ?? existingAsset?.valuationDate ?? null,
+      zakatEligible: Boolean(
+        payload.zakatEligible ?? existingAsset?.zakatEligible,
+      ),
+      zakatPercentage:
+        payload.zakatPercentage ?? existingAsset?.zakatPercentage ?? 100,
+      notes: payload.notes ?? existingAsset?.notes ?? null,
+      updatedAt: now,
+      createdAt: existingAsset?.createdAt ?? now,
+    };
+    upsertLocalRecord(db, "assets", localAsset, now);
+    return localAsset;
+  }
+
+  const investmentUpdateMatch = mutation.path.match(/^\/investments\/([^/]+)$/);
+  if (mutation.method === "PUT" && investmentUpdateMatch) {
+    const investmentId = investmentUpdateMatch[1]!;
+    const existingInvestment = readModuleRecords(db, "investments").find(
+      (item) => item.id === investmentId,
+    );
+    const localInvestment = {
+      ...(existingInvestment ?? {}),
+      id: investmentId,
+      type: String(payload.type ?? existingInvestment?.type ?? ""),
+      name: hasOwnRecordKey(payload, "name")
+        ? payload.name
+        : (existingInvestment?.name ?? null),
+      stockFundName: hasOwnRecordKey(payload, "stockFundName")
+        ? payload.stockFundName
+        : (existingInvestment?.stockFundName ?? null),
+      amountInvested:
+        payload.amountInvested ?? existingInvestment?.amountInvested ?? "0",
+      currency: payload.currency ?? existingInvestment?.currency,
+      quantity: hasOwnRecordKey(payload, "quantity")
+        ? payload.quantity
+        : (existingInvestment?.quantity ?? null),
+      nav: hasOwnRecordKey(payload, "nav")
+        ? payload.nav
+        : (existingInvestment?.nav ?? null),
+      currentValue: hasOwnRecordKey(payload, "currentValue")
+        ? payload.currentValue
+        : (existingInvestment?.currentValue ?? null),
+      purchaseDate: hasOwnRecordKey(payload, "purchaseDate")
+        ? payload.purchaseDate
+        : (existingInvestment?.purchaseDate ?? null),
+      latestValuationDate: hasOwnRecordKey(payload, "latestValuationDate")
+        ? payload.latestValuationDate
+        : (existingInvestment?.latestValuationDate ?? null),
+      zakatEligible: Boolean(
+        payload.zakatEligible ?? existingInvestment?.zakatEligible,
+      ),
+      zakatPercentage:
+        payload.zakatPercentage ?? existingInvestment?.zakatPercentage ?? 100,
+      notes: hasOwnRecordKey(payload, "notes")
+        ? payload.notes
+        : (existingInvestment?.notes ?? null),
+      updatedAt: now,
+      createdAt: existingInvestment?.createdAt ?? now,
+    };
+    upsertLocalRecord(db, "investments", localInvestment, now);
+    return localInvestment;
+  }
+
   const loanUpdateMatch = mutation.path.match(/^\/loans\/([^/]+)$/);
   if (mutation.method === "PUT" && loanUpdateMatch) {
     const loanId = loanUpdateMatch[1]!;
@@ -1225,6 +1313,10 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasOwnRecordKey(record: Record<string, unknown>, key: string) {
+  return Object.prototype.hasOwnProperty.call(record, key);
 }
 
 function attachmentFromRecord(
@@ -1608,11 +1700,15 @@ export async function storeServerResponseForPath(
     ? createModule
     : pathOnly.match(/^\/expenses\/[^/]+$/)
       ? "expenses"
-      : pathOnly.match(/^\/loans\/[^/]+$/) ||
-          pathOnly.match(/^\/loans\/share\/[^/]+$/) ||
-          pathOnly.match(/^\/public\/loans\/[^/]+$/)
-        ? "loans"
-        : null;
+      : pathOnly.match(/^\/investments\/[^/]+$/)
+        ? "investments"
+        : pathOnly.match(/^\/assets\/[^/]+$/)
+          ? "assets"
+          : pathOnly.match(/^\/loans\/[^/]+$/) ||
+              pathOnly.match(/^\/loans\/share\/[^/]+$/) ||
+              pathOnly.match(/^\/public\/loans\/[^/]+$/)
+            ? "loans"
+            : null;
   const record = responseRecord(responseBody);
 
   if (detailModule && record) {
