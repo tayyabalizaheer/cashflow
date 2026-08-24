@@ -271,8 +271,161 @@ function readActiveModuleRecords(db: Database, module: string) {
   );
 }
 
+function activeRecordsByModule(db: Database) {
+  return {
+    expenses: readActiveModuleRecords(db, "expenses"),
+    loans: readActiveModuleRecords(db, "loans"),
+    investments: readActiveModuleRecords(db, "investments"),
+    assets: readActiveModuleRecords(db, "assets"),
+  };
+}
+
 function deleteLocalRecord(db: Database, module: string, id: string) {
   db.run("DELETE FROM local_records WHERE module = ? AND id = ?", [module, id]);
+}
+
+function localCurrencyCodes(db: Database) {
+  const records = activeRecordsByModule(db);
+  const codes = new Set<string>();
+
+  records.expenses.forEach((expense) => {
+    if (typeof expense.currency === "string") codes.add(expense.currency);
+    if (typeof expense.mainCurrency === "string")
+      codes.add(expense.mainCurrency);
+    if (Array.isArray(expense.currencies)) {
+      expense.currencies.forEach((line) => {
+        if (isRecord(line) && typeof line.currencyCode === "string") {
+          codes.add(line.currencyCode);
+        }
+      });
+    }
+    if (Array.isArray(expense.transactions)) {
+      expense.transactions.forEach((transaction) => {
+        if (!isRecord(transaction) || !Array.isArray(transaction.amounts))
+          return;
+        transaction.amounts.forEach((amount) => {
+          if (isRecord(amount) && typeof amount.currencyCode === "string") {
+            codes.add(amount.currencyCode);
+          }
+        });
+      });
+    }
+  });
+
+  records.loans.forEach((loan) => {
+    if (typeof loan.currency === "string") codes.add(loan.currency);
+    if (Array.isArray(loan.balances)) {
+      loan.balances.forEach((balance) => {
+        if (isRecord(balance) && typeof balance.currency === "string") {
+          codes.add(balance.currency);
+        }
+      });
+    }
+    if (Array.isArray(loan.transactions)) {
+      loan.transactions.forEach((transaction) => {
+        if (isRecord(transaction) && typeof transaction.currency === "string") {
+          codes.add(transaction.currency);
+        }
+      });
+    }
+  });
+
+  [...records.investments, ...records.assets].forEach((record) => {
+    if (typeof record.currency === "string") codes.add(record.currency);
+    if (typeof record.sourceCurrency === "string")
+      codes.add(record.sourceCurrency);
+  });
+
+  return [...codes].filter(Boolean).sort();
+}
+
+function localUserCurrencies(db: Database) {
+  const codes = localCurrencyCodes(db);
+  const safeCodes = codes.length ? codes : ["USD"];
+  return safeCodes.map((currencyCode, index) => ({
+    id: `local-currency-${currencyCode}`,
+    currencyCode,
+    active: true,
+    isDefault: index === 0,
+    currency: {
+      code: currencyCode,
+      name: currencyCode,
+      symbol: null,
+      decimalPlaces: 2,
+      active: true,
+    },
+  }));
+}
+
+function localCategories(db: Database) {
+  const categories = new Map<string, Record<string, unknown>>();
+  readActiveModuleRecords(db, "expenses").forEach((expense) => {
+    if (isRecord(expense.category) && typeof expense.category.id === "string") {
+      categories.set(expense.category.id, {
+        id: expense.category.id,
+        name:
+          typeof expense.category.name === "string"
+            ? expense.category.name
+            : "Expense",
+        color:
+          typeof expense.category.color === "string"
+            ? expense.category.color
+            : "#047857",
+        icon:
+          typeof expense.category.icon === "string"
+            ? expense.category.icon
+            : "circle",
+        active: true,
+      });
+    }
+  });
+  return [...categories.values()].sort((left, right) =>
+    String(left.name).localeCompare(String(right.name)),
+  );
+}
+
+function localDashboard(db: Database) {
+  const records = activeRecordsByModule(db);
+  const currencyCodes = localCurrencyCodes(db);
+  const baseCurrency = currencyCodes[0] ?? "USD";
+  return {
+    baseCurrency,
+    consolidatedTotalsAvailable: currencyCodes.length <= 1,
+    currencyNote:
+      currencyCodes.length > 1
+        ? "Showing local mixed-currency records. Totals sync when you sign in."
+        : "Showing local records from this device.",
+    counts: {
+      expenses: records.expenses.length,
+      loans: records.loans.length,
+      investments: records.investments.length,
+      assets: records.assets.length,
+    },
+    latestZakat: null,
+    recent: {
+      expenses: records.expenses.slice(0, 5),
+      loans: records.loans.slice(0, 5),
+      investments: records.investments.slice(0, 5),
+      assets: records.assets.slice(0, 5),
+    },
+  };
+}
+
+function localPurposes(records: Array<Record<string, unknown>>) {
+  return [
+    ...new Set(
+      records
+        .flatMap((record) =>
+          Array.isArray(record.transactions)
+            ? (record.transactions.filter(isRecord) as Array<
+                Record<string, unknown>
+              >)
+            : [],
+        )
+        .map((transaction) => transaction.purpose)
+        .filter((purpose): purpose is string => typeof purpose === "string"),
+    ),
+  ].sort();
 }
 
 function trashModuleForType(type: string) {
@@ -560,6 +713,57 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
     return localLoan;
   }
 
+  if (mutation.method === "POST" && mutation.path === "/expenses") {
+    const selectedCurrencies = Array.isArray(payload.currencies)
+      ? payload.currencies.filter(
+          (value): value is string => typeof value === "string",
+        )
+      : [];
+    const mainCurrency =
+      typeof payload.mainCurrency === "string"
+        ? payload.mainCurrency
+        : (selectedCurrencies[0] ?? "USD");
+    const localExpense = {
+      id: typeof payload.id === "string" ? payload.id : crypto.randomUUID(),
+      categoryId:
+        typeof payload.categoryId === "string" ? payload.categoryId : null,
+      category: localCategories(db).find(
+        (category) => category.id === payload.categoryId,
+      ) ?? {
+        id:
+          typeof payload.categoryId === "string"
+            ? payload.categoryId
+            : crypto.randomUUID(),
+        name: "Expense",
+        color: "#047857",
+        icon: "circle",
+        active: true,
+      },
+      name: String(payload.name ?? ""),
+      purpose: String(payload.name ?? ""),
+      mainCurrency,
+      amount: "0.0000",
+      currency: mainCurrency,
+      expenseDate: now,
+      notes: payload.notes ?? null,
+      currencies: (selectedCurrencies.length
+        ? selectedCurrencies
+        : [mainCurrency]
+      ).map((currencyCode) => ({
+        id: crypto.randomUUID(),
+        currencyCode,
+        isMain: currencyCode === mainCurrency,
+      })),
+      amounts: [],
+      transactions: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    mutation.body = serialize({ ...payload, id: localExpense.id });
+    upsertLocalRecord(db, "expenses", localExpense, now);
+    return localExpense;
+  }
+
   if (mutation.method === "POST" && mutation.path === "/assets") {
     const localAsset = {
       id: typeof payload.id === "string" ? payload.id : crypto.randomUUID(),
@@ -625,6 +829,125 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       writeLoanWithBalances(db, updatedLoan, now);
       return updatedLoan;
     }
+  }
+
+  const expenseTransactionMatch = mutation.path.match(
+    /^\/expenses\/([^/]+)\/transactions$/,
+  );
+  if (mutation.method === "POST" && expenseTransactionMatch) {
+    const expenseId = expenseTransactionMatch[1]!;
+    const expense = readActiveModuleRecords(db, "expenses").find(
+      (item) => item.id === expenseId,
+    );
+    const mainCurrency = String(
+      expense?.mainCurrency ?? expense?.currency ?? "USD",
+    );
+    const inputAmounts = Array.isArray(payload.amounts)
+      ? (payload.amounts.filter(isRecord) as Array<Record<string, unknown>>)
+      : [];
+    const mainLine =
+      inputAmounts.find((line) => line.currency === mainCurrency) ??
+      inputAmounts[0];
+    const mainAmount = Number(mainLine?.amount ?? 0);
+    const localTransaction = {
+      id: typeof payload.id === "string" ? payload.id : crypto.randomUUID(),
+      expenseId,
+      purpose: String(payload.purpose ?? ""),
+      transactionDate: payload.transactionDate ?? now,
+      mainCurrency,
+      mainAmount: Number.isFinite(mainAmount)
+        ? mainAmount.toFixed(4)
+        : "0.0000",
+      notes: payload.notes ?? null,
+      attachments: Array.isArray(payload.attachments)
+        ? payload.attachments
+        : [],
+      amounts: inputAmounts.map((line) => ({
+        id: crypto.randomUUID(),
+        amount: String(line.amount ?? "0"),
+        currencyCode: String(line.currency ?? mainCurrency),
+        rateToMain: String(line.rateToMain ?? "1"),
+        mainAmount: Number.isFinite(mainAmount)
+          ? mainAmount.toFixed(4)
+          : "0.0000",
+      })),
+      createdAt: now,
+      updatedAt: now,
+    };
+    mutation.body = serialize({ ...payload, id: localTransaction.id });
+    if (expense) {
+      const transactions: Array<Record<string, unknown>> = Array.isArray(
+        expense.transactions,
+      )
+        ? [
+            ...(expense.transactions.filter(isRecord) as Array<
+              Record<string, unknown>
+            >),
+            localTransaction,
+          ]
+        : [localTransaction];
+      const amount = transactions
+        .filter((transaction) => !transaction.archivedAt)
+        .reduce(
+          (sum, transaction) => sum + Number(transaction.mainAmount ?? 0),
+          0,
+        );
+      upsertLocalRecord(
+        db,
+        "expenses",
+        {
+          ...expense,
+          amount: amount.toFixed(4),
+          transactions: sortRecordsByLatest(transactions),
+          updatedAt: now,
+        },
+        now,
+      );
+    }
+    return localTransaction;
+  }
+
+  const expenseTransactionUpdateMatch = mutation.path.match(
+    /^\/expenses\/([^/]+)\/transactions\/([^/]+)$/,
+  );
+  if (mutation.method === "DELETE" && expenseTransactionUpdateMatch) {
+    const [, expenseId, transactionId] = expenseTransactionUpdateMatch;
+    const expense = readActiveModuleRecords(db, "expenses").find(
+      (item) => item.id === expenseId,
+    );
+    if (expense && transactionId) {
+      const transactions = Array.isArray(expense.transactions)
+        ? (expense.transactions.filter(isRecord) as Array<
+            Record<string, unknown>
+          >)
+        : [];
+      const updatedTransactions = transactions.map((transaction) =>
+        transaction.id === transactionId
+          ? { ...transaction, archivedAt: now, updatedAt: now }
+          : transaction,
+      );
+      const amount = updatedTransactions
+        .filter((transaction) => !transaction.archivedAt)
+        .reduce(
+          (sum, transaction) => sum + Number(transaction.mainAmount ?? 0),
+          0,
+        );
+      upsertLocalRecord(
+        db,
+        "expenses",
+        {
+          ...expense,
+          amount: amount.toFixed(4),
+          transactions: updatedTransactions,
+          updatedAt: now,
+        },
+        now,
+      );
+      return updatedTransactions.find(
+        (transaction) => transaction.id === transactionId,
+      );
+    }
+    return { archivedAt: now };
   }
 
   const loanTransactionMatch = mutation.path.match(
@@ -988,8 +1311,48 @@ export async function resetLocalDatabase() {
   await persistDatabase(db);
 }
 
+export async function hasLocalData() {
+  const db = await getLocalDatabase();
+  const records = db.exec("SELECT COUNT(*) AS count FROM local_records")[0];
+  const mutations = db.exec(
+    "SELECT COUNT(*) AS count FROM local_mutations WHERE status = 'PENDING'",
+  )[0];
+  const recordCount = Number(records?.values[0]?.[0] ?? 0);
+  const mutationCount = Number(mutations?.values[0]?.[0] ?? 0);
+  return recordCount > 0 || mutationCount > 0;
+}
+
 export async function localResponseForPath(path: string) {
   const db = await getLocalDatabase();
+  const pathOnly = path.split("?")[0] ?? path;
+  if (pathOnly === "/dashboard") return { data: localDashboard(db) };
+  if (pathOnly === "/profile") {
+    return {
+      data: {
+        fullName: "Local user",
+        email: "",
+        preferences: {
+          baseCurrency: localCurrencyCodes(db)[0] ?? "USD",
+          locale: "en-US",
+          timeZone: "UTC",
+          theme: "system",
+        },
+      },
+    };
+  }
+  if (pathOnly === "/user-currencies") {
+    return { data: localUserCurrencies(db) };
+  }
+  if (pathOnly === "/currencies") {
+    return { data: localUserCurrencies(db).map((item) => item.currency) };
+  }
+  if (pathOnly === "/categories") return { data: localCategories(db) };
+  if (pathOnly === "/expense-purposes") {
+    return { data: localPurposes(readActiveModuleRecords(db, "expenses")) };
+  }
+  if (pathOnly === "/loan-purposes") {
+    return { data: localPurposes(readActiveModuleRecords(db, "loans")) };
+  }
   if (path === "/loans") {
     return { data: readActiveModuleRecords(db, "loans") };
   }
@@ -1015,12 +1378,19 @@ export async function localResponseForPath(path: string) {
     if (loan) return { data: loan };
   }
   if (path === "/trash") return { data: localTrashItems(db) };
+  const expenseMatch = pathOnly.match(/^\/expenses\/([^/]+)$/);
+  if (expenseMatch) {
+    const expense = readActiveModuleRecords(db, "expenses").find(
+      (item) => item.id === expenseMatch[1],
+    );
+    if (expense) return { data: expense };
+  }
   const moduleMap: Record<string, string> = {
     "/expenses": "expenses",
     "/investments": "investments",
     "/assets": "assets",
   };
-  const module = moduleMap[path.split("?")[0] ?? path];
+  const module = moduleMap[pathOnly];
   if (module) return { data: readActiveModuleRecords(db, module) };
   return null;
 }

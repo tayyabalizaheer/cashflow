@@ -617,11 +617,13 @@ export function LoanDetailPage() {
         aria-label={`Balance ${balanceTotalText}`}
       >
         <div className="loan-balance-grid">
+          Balance
+        </div>
+        <div className="loan-balance-grid">
           {displayedBalances.map((balance) => (
             <div className="loan-balance-item" key={balance.currency}>
-              <span>{balance.currency}</span>
               <strong className={balanceClass(balance.balance)}>
-                {formatCurrencyValueOnly(balance.balance, balance.currency)}
+                {formatCurrencyValueOnly(balance.balance, balance.currency)} {balance.currency}
               </strong>
             </div>
           ))}

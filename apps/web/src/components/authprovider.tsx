@@ -1,10 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { api, setAccessToken } from "../lib/api";
+import { flushOfflineMutations } from "../lib/offlinequeue";
 import {
   bootstrapLocalData,
-  resetLocalDatabase,
+  hasLocalData,
   type BootstrapProgress,
-  type BootstrapSummary
+  type BootstrapSummary,
 } from "../lib/localsqlite";
 
 type User = {
@@ -16,12 +17,18 @@ type User = {
 type AuthContextValue = {
   user: User | null;
   token: string | null;
+  localAvailable: boolean;
+  localMode: boolean;
   initializing: boolean;
   syncProgress: BootstrapProgress | null;
   restoreSummary: BootstrapSummary | null;
   restoreOnlineData: () => Promise<void>;
   skipRestore: () => void;
-  login: (email: string, password: string, rememberMe: boolean) => Promise<void>;
+  login: (
+    email: string,
+    password: string,
+    rememberMe: boolean,
+  ) => Promise<void>;
   register: (input: {
     fullName: string;
     email: string;
@@ -36,9 +43,14 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [localAvailable, setLocalAvailable] = useState(false);
   const [initializing, setInitializing] = useState(true);
-  const [syncProgress, setSyncProgress] = useState<BootstrapProgress | null>(null);
-  const [restoreSummary, setRestoreSummary] = useState<BootstrapSummary | null>(null);
+  const [syncProgress, setSyncProgress] = useState<BootstrapProgress | null>(
+    null,
+  );
+  const [restoreSummary, setRestoreSummary] = useState<BootstrapSummary | null>(
+    null,
+  );
 
   function receiveSession(nextUser: User, nextToken: string) {
     setUser(nextUser);
@@ -55,7 +67,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function prepareRestore(nextUser: User, nextToken: string) {
     receiveSession(nextUser, nextToken);
-    await resetLocalDatabase();
+    await flushOfflineMutations().catch(() => undefined);
+    setLocalAvailable(await hasLocalData());
     try {
       const summary = await api<{ data: BootstrapSummary }>("/sync/summary");
       setRestoreSummary(summary.data);
@@ -83,12 +96,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     async function refreshSession() {
       try {
-        const response = await api<{ data: { user: User; accessToken: string } }>("/auth/refresh", {
-          method: "POST"
+        const response = await api<{
+          data: { user: User; accessToken: string };
+        }>("/auth/refresh", {
+          method: "POST",
         });
-        if (active) receiveSession(response.data.user, response.data.accessToken);
+        if (active) {
+          receiveSession(response.data.user, response.data.accessToken);
+          setLocalAvailable(await hasLocalData());
+        }
       } catch {
-        if (active) clearSession();
+        if (active) {
+          clearSession();
+          setLocalAvailable(await hasLocalData());
+        }
       } finally {
         if (active) setInitializing(false);
       }
@@ -100,35 +121,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    async function handleSessionRestored(event: Event) {
+      const detail = (
+        event as CustomEvent<{ user?: User; accessToken?: string }>
+      ).detail;
+      if (detail?.user && detail.accessToken) {
+        receiveSession(detail.user, detail.accessToken);
+        await flushOfflineMutations().catch(() => undefined);
+        setLocalAvailable(await hasLocalData());
+      }
+    }
+
+    window.addEventListener(
+      "cash-flow:session-restored",
+      handleSessionRestored,
+    );
+    return () => {
+      window.removeEventListener(
+        "cash-flow:session-restored",
+        handleSessionRestored,
+      );
+    };
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       token,
+      localAvailable,
+      localMode: !user && localAvailable,
       initializing,
       syncProgress,
       restoreSummary,
       restoreOnlineData,
       skipRestore,
       async login(email, password, rememberMe) {
-        const response = await api<{ data: { user: User; accessToken: string } }>("/auth/login", {
+        const response = await api<{
+          data: { user: User; accessToken: string };
+        }>("/auth/login", {
           method: "POST",
-          body: JSON.stringify({ email, password, rememberMe })
+          body: JSON.stringify({ email, password, rememberMe }),
         });
         await prepareRestore(response.data.user, response.data.accessToken);
       },
       async register(input) {
-        const response = await api<{ data: { user: User; accessToken: string } }>("/auth/register", {
+        const response = await api<{
+          data: { user: User; accessToken: string };
+        }>("/auth/register", {
           method: "POST",
-          body: JSON.stringify({ ...input, termsAccepted: true })
+          body: JSON.stringify({ ...input, termsAccepted: true }),
         });
         await prepareRestore(response.data.user, response.data.accessToken);
       },
       async logout() {
         await api("/auth/logout", { method: "POST" }).catch(() => undefined);
         clearSession();
-      }
+      },
     }),
-    [user, token, initializing, syncProgress, restoreSummary]
+    [user, token, localAvailable, initializing, syncProgress, restoreSummary],
   );
 
   return (
@@ -146,11 +197,17 @@ export function useAuth() {
 }
 
 function RestorePrompt() {
-  const { restoreSummary, syncProgress, restoreOnlineData, skipRestore } = useAuth();
+  const { restoreSummary, syncProgress, restoreOnlineData, skipRestore } =
+    useAuth();
   if (!restoreSummary) return null;
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Restore online data">
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Restore online data"
+    >
       <section className="modal-panel restore-panel">
         <div>
           <p className="eyebrow">Restore</p>
@@ -179,10 +236,20 @@ function RestorePrompt() {
           </div>
         ) : null}
         <div className="confirm-actions">
-          <button className="secondary-button" type="button" onClick={skipRestore} disabled={Boolean(syncProgress)}>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={skipRestore}
+            disabled={Boolean(syncProgress)}
+          >
             Skip
           </button>
-          <button className="primary-button" type="button" onClick={restoreOnlineData} disabled={Boolean(syncProgress)}>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={restoreOnlineData}
+            disabled={Boolean(syncProgress)}
+          >
             Restore data
           </button>
         </div>

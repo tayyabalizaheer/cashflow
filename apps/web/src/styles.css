@@ -1091,7 +1091,7 @@ th {
 }
 
 .expense-list-header .expense-summary-row {
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .expense-detail-header {
