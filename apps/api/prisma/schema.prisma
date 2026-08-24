@@ -282,6 +282,7 @@ model Loan {
   notes        String?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
+  pinnedAt     DateTime?
   archivedAt   DateTime?
   user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions LoanTransaction[]
@@ -291,6 +292,7 @@ model Loan {
   @@index([userId, status])
   @@index([userId, currency])
   @@index([userId, shareId])
+  @@index([userId, pinnedAt])
 }
 
 model LoanTransaction {
@@ -340,6 +342,7 @@ model Investment {
   userId              String
   type                String
   name                String?
+  stockFundName       String?   @db.VarChar(191)
   amountInvested      Decimal   @db.Decimal(19, 4)
   currency            String
   quantity            Decimal?  @db.Decimal(19, 8)
@@ -358,6 +361,7 @@ model Investment {
   @@index([userId, type])
   @@index([userId, currency])
   @@index([userId, purchaseDate])
+  @@index([userId, stockFundName])
 }
 
 model Stock {

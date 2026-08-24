@@ -900,6 +900,7 @@ const loanSchema = z.object({
   id: z.string().uuid().optional(),
   shareId: z.string().length(5).optional(),
   person: z.string().trim().min(2).max(120),
+  pinnedAt: z.coerce.date().nullable().optional(),
 });
 
 const loanTransactionSchema = z.object({
@@ -1076,6 +1077,7 @@ financeRouter.post(
         amount: "0.0000",
         currency: defaultCurrency?.currencyCode ?? "USD",
         direction: "LENT",
+        ...(input.pinnedAt !== undefined ? { pinnedAt: input.pinnedAt } : {}),
       },
       include: loanInclude,
     });
@@ -1093,7 +1095,11 @@ financeRouter.put(
     const id = paramUuid(req.params.id);
     const item = await prisma.loan.update({
       where: { id, userId: req.user!.id },
-      data: { person: input.person, purpose: input.person },
+      data: {
+        person: input.person,
+        purpose: input.person,
+        ...(input.pinnedAt !== undefined ? { pinnedAt: input.pinnedAt } : {}),
+      },
       include: loanInclude,
     });
     const [itemWithFiles] = await attachFilesToLoans([item]);
@@ -1359,6 +1365,7 @@ financeRouter.post(
 const investmentSchema = z.object({
   type: z.string().trim().min(2).max(80),
   name: z.string().trim().max(120).optional(),
+  stockFundName: z.string().trim().max(191).nullable().optional(),
   amountInvested: positiveDecimal,
   currency,
   quantity: nonNegativeDecimal.optional(),

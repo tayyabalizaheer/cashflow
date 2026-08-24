@@ -162,6 +162,9 @@ function timeValue(value: unknown) {
 
 function sortRecordsByLatest(records: Array<Record<string, unknown>>) {
   return [...records].sort((left, right) => {
+    const leftPinned = timeValue(left.pinnedAt);
+    const rightPinned = timeValue(right.pinnedAt);
+    if (leftPinned || rightPinned) return rightPinned - leftPinned;
     const leftTransactions = Array.isArray(left.transactions)
       ? (left.transactions.filter(isRecord) as Array<Record<string, unknown>>)
       : [];
@@ -320,22 +323,26 @@ function localTrashItems(db: Database) {
         updatedAt: record.updatedAt,
       }));
   });
-  const loanTransactionItems = readModuleRecords(db, "loans").flatMap((loan) => {
-    const transactions = Array.isArray(loan.transactions)
-      ? (loan.transactions.filter(isRecord) as Array<Record<string, unknown>>)
-      : [];
-    return transactions
-      .filter((transaction) => transaction.archivedAt)
-      .map((transaction) => ({
-        id: String(transaction.id),
-        type: "loan-transactions",
-        label: trashLabelForType("loan-transactions"),
-        title: String(transaction.purpose ?? loan.person ?? "Loan transaction"),
-        archivedAt: String(transaction.archivedAt),
-        createdAt: transaction.createdAt,
-        updatedAt: transaction.updatedAt,
-      }));
-  });
+  const loanTransactionItems = readModuleRecords(db, "loans").flatMap(
+    (loan) => {
+      const transactions = Array.isArray(loan.transactions)
+        ? (loan.transactions.filter(isRecord) as Array<Record<string, unknown>>)
+        : [];
+      return transactions
+        .filter((transaction) => transaction.archivedAt)
+        .map((transaction) => ({
+          id: String(transaction.id),
+          type: "loan-transactions",
+          label: trashLabelForType("loan-transactions"),
+          title: String(
+            transaction.purpose ?? loan.person ?? "Loan transaction",
+          ),
+          archivedAt: String(transaction.archivedAt),
+          createdAt: transaction.createdAt,
+          updatedAt: transaction.updatedAt,
+        }));
+    },
+  );
   return [...moduleItems, ...loanTransactionItems].sort(
     (left, right) =>
       new Date(right.archivedAt).getTime() -
@@ -538,6 +545,7 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       shareId:
         typeof payload.shareId === "string" ? payload.shareId : fiveCharId(),
       person: String(payload.person ?? ""),
+      pinnedAt: typeof payload.pinnedAt === "string" ? payload.pinnedAt : null,
       balances: [],
       transactions: [],
       createdAt: now,
@@ -579,6 +587,7 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       id: typeof payload.id === "string" ? payload.id : crypto.randomUUID(),
       type: String(payload.type ?? ""),
       name: payload.name ?? null,
+      stockFundName: payload.stockFundName ?? null,
       amountInvested: payload.amountInvested ?? "0",
       currency: payload.currency,
       quantity: payload.quantity ?? null,
@@ -608,6 +617,9 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
         ...loan,
         person: String(payload.person ?? loan.person ?? ""),
         purpose: String(payload.person ?? loan.purpose ?? ""),
+        ...(Object.prototype.hasOwnProperty.call(payload, "pinnedAt")
+          ? { pinnedAt: payload.pinnedAt ?? null }
+          : {}),
         updatedAt: now,
       };
       writeLoanWithBalances(db, updatedLoan, now);

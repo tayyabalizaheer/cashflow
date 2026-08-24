@@ -1,7 +1,17 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Copy, MoreVertical, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import {
+  Copy,
+  MoreVertical,
+  Pencil,
+  Pin,
+  PinOff,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import { api, formatCurrency } from "../lib/api";
 import { useCloseActionMenu } from "../lib/usecloseactionmenu";
 
@@ -17,6 +27,7 @@ type Loan = {
   balances?: LoanBalance[];
   createdAt?: string;
   updatedAt?: string;
+  pinnedAt?: string | null;
 };
 
 function balanceClass(value: string | number) {
@@ -37,6 +48,9 @@ function timeValue(value?: string | null) {
 }
 
 function compareLoansByLatestDesc(left: Loan, right: Loan) {
+  const rightPinned = timeValue(right.pinnedAt);
+  const leftPinned = timeValue(left.pinnedAt);
+  if (rightPinned || leftPinned) return rightPinned - leftPinned;
   return (
     Math.max(timeValue(right.updatedAt), timeValue(right.createdAt)) -
     Math.max(timeValue(left.updatedAt), timeValue(left.createdAt))
@@ -55,40 +69,50 @@ export function LoansPage() {
   useCloseActionMenu(Boolean(activeMenuId), () => setActiveMenuId(null));
   const { data, error, isLoading } = useQuery({
     queryKey: ["loans"],
-    queryFn: () => api<{ data: Loan[] }>("/loans")
+    queryFn: () => api<{ data: Loan[] }>("/loans"),
   });
   const createLoan = useMutation({
     mutationFn: (payload: { person: string }) =>
       api<{ data: Loan }>("/loans", {
         method: "POST",
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["loans"] });
       setPerson("");
       setShowAdd(false);
-    }
+    },
   });
   const deleteLoan = useMutation({
-    mutationFn: (loanId: string) => api(`/loans/${loanId}`, { method: "DELETE" }),
+    mutationFn: (loanId: string) =>
+      api(`/loans/${loanId}`, { method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["loans"] });
       setLoanToDelete(null);
       setActiveMenuId(null);
-    }
+    },
   });
   const updateLoan = useMutation({
-    mutationFn: (payload: { id: string; person: string }) =>
+    mutationFn: (payload: {
+      id: string;
+      person: string;
+      pinnedAt?: string | null;
+    }) =>
       api<{ data: Loan }>(`/loans/${payload.id}`, {
         method: "PUT",
-        body: JSON.stringify({ person: payload.person })
+        body: JSON.stringify({
+          person: payload.person,
+          ...(payload.pinnedAt !== undefined
+            ? { pinnedAt: payload.pinnedAt }
+            : {}),
+        }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["loans"] });
       setLoanToEdit(null);
       setEditPerson("");
       setActiveMenuId(null);
-    }
+    },
   });
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -117,6 +141,14 @@ export function LoansPage() {
     updateLoan.mutate({ id: loanToEdit.id, person: editPerson });
   }
 
+  function togglePinnedLoan(loan: Loan) {
+    updateLoan.mutate({
+      id: loan.id,
+      person: loan.person,
+      pinnedAt: loan.pinnedAt ? null : new Date().toISOString(),
+    });
+  }
+
   async function copyShareLink(shareId: string) {
     await navigator.clipboard?.writeText(shareUrl(shareId));
     setActiveMenuId(null);
@@ -130,7 +162,12 @@ export function LoansPage() {
           <h1>Loans</h1>
         </div>
         <div className="header-icon-actions">
-          <button className="icon-button primary-icon" type="button" title="Add person" onClick={() => setShowAdd(true)}>
+          <button
+            className="icon-button primary-icon"
+            type="button"
+            title="Add person"
+            onClick={() => setShowAdd(true)}
+          >
             <Plus size={18} />
           </button>
         </div>
@@ -139,27 +176,48 @@ export function LoansPage() {
       <div className="record-filters search-only">
         <label className="search-box">
           <Search size={16} />
-          <input aria-label="Search people" placeholder="Search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
+          <input
+            aria-label="Search people"
+            placeholder="Search"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+          />
         </label>
       </div>
 
       {error ? <div className="form-error">Could not load loans.</div> : null}
       {isLoading ? <div className="empty-state">Loading loans...</div> : null}
-      {loans.length === 0 && !isLoading ? <div className="empty-state">No loans yet. Add a person first.</div> : null}
+      {loans.length === 0 && !isLoading ? (
+        <div className="empty-state">No loans yet. Add a person first.</div>
+      ) : null}
 
       <div className="expense-list">
         {loans.map((loan) => (
-          <article className="expense-card expense-card-row loan-tile" key={loan.id}>
+          <article
+            className={`expense-card expense-card-row loan-tile${loan.pinnedAt ? " pinned" : ""}`}
+            key={loan.id}
+          >
             <Link className="expense-card-header" to={`/loans/${loan.id}`}>
-              <div>
+              <div className="loan-title-cell">
                 <strong>{loan.person}</strong>
-                <span>Share code {loan.shareId}</span>
+                {loan.pinnedAt ? (
+                  <Pin
+                    className="loan-pin-indicator"
+                    size={14}
+                    aria-label="Pinned loan"
+                  />
+                ) : null}
               </div>
               <div className="expense-summary-row">
-                {(loan.balances?.length ? loan.balances : [{ currency: "USD", balance: "0" }]).map((balance) => (
+                {(loan.balances?.length
+                  ? loan.balances
+                  : [{ currency: "USD", balance: "0" }]
+                ).map((balance) => (
                   <div className="expense-summary-cell" key={balance.currency}>
                     <span>{balance.currency}</span>
-                    <strong className={balanceClass(balance.balance)}>{formatCurrency(balance.balance, balance.currency)}</strong>
+                    <strong className={balanceClass(balance.balance)}>
+                      {formatCurrency(balance.balance, balance.currency)}
+                    </strong>
                   </div>
                 ))}
               </div>
@@ -169,15 +227,30 @@ export function LoansPage() {
                 className="icon-button"
                 type="button"
                 title="Loan actions"
-                onClick={() => setActiveMenuId((current) => (current === loan.id ? null : loan.id))}
+                onClick={() =>
+                  setActiveMenuId((current) =>
+                    current === loan.id ? null : loan.id,
+                  )
+                }
               >
                 <MoreVertical size={17} />
               </button>
               {activeMenuId === loan.id ? (
-                <div className="action-menu" role="menu" aria-label={`${loan.person} actions`}>
-                  <button type="button" onClick={() => copyShareLink(loan.shareId)}>
+                <div
+                  className="action-menu"
+                  role="menu"
+                  aria-label={`${loan.person} actions`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => copyShareLink(loan.shareId)}
+                  >
                     <Copy size={15} />
                     <span>Share link</span>
+                  </button>
+                  <button type="button" onClick={() => togglePinnedLoan(loan)}>
+                    {loan.pinnedAt ? <PinOff size={15} /> : <Pin size={15} />}
+                    <span>{loan.pinnedAt ? "Unpin loan" : "Pin loan"}</span>
                   </button>
                   <button type="button" onClick={() => openEditLoan(loan)}>
                     <Pencil size={15} />
@@ -195,29 +268,55 @@ export function LoansPage() {
       </div>
 
       {showAdd ? (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Add loan person">
-          <form className="modal-panel form-modal confirm-panel" onSubmit={submitLoan}>
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add loan person"
+        >
+          <form
+            className="modal-panel form-modal confirm-panel"
+            onSubmit={submitLoan}
+          >
             <div className="modal-header">
               <div>
                 <p className="eyebrow">New loan</p>
                 <h2>Person</h2>
               </div>
-              <button className="icon-button" type="button" title="Close" onClick={() => setShowAdd(false)}>
+              <button
+                className="icon-button"
+                type="button"
+                title="Close"
+                onClick={() => setShowAdd(false)}
+              >
                 <X size={16} />
               </button>
             </div>
             <div className="modal-form-body">
               <label>
                 Person name
-                <input value={person} onChange={(event) => setPerson(event.target.value)} required />
+                <input
+                  value={person}
+                  onChange={(event) => setPerson(event.target.value)}
+                  required
+                />
               </label>
-              {createLoan.error ? <div className="form-error">{createLoan.error.message}</div> : null}
+              {createLoan.error ? (
+                <div className="form-error">{createLoan.error.message}</div>
+              ) : null}
             </div>
             <div className="confirm-actions">
-              <button className="secondary-button" type="button" onClick={() => setShowAdd(false)}>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setShowAdd(false)}
+              >
                 Cancel
               </button>
-              <button className="primary-button" disabled={createLoan.isPending || !person.trim()}>
+              <button
+                className="primary-button"
+                disabled={createLoan.isPending || !person.trim()}
+              >
                 Save person
               </button>
             </div>
@@ -226,29 +325,55 @@ export function LoansPage() {
       ) : null}
 
       {loanToEdit ? (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Edit loan name">
-          <form className="modal-panel form-modal confirm-panel" onSubmit={submitEditLoan}>
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit loan name"
+        >
+          <form
+            className="modal-panel form-modal confirm-panel"
+            onSubmit={submitEditLoan}
+          >
             <div className="modal-header">
               <div>
                 <p className="eyebrow">Edit</p>
                 <h2>Loan name</h2>
               </div>
-              <button className="icon-button" type="button" title="Close" onClick={() => setLoanToEdit(null)}>
+              <button
+                className="icon-button"
+                type="button"
+                title="Close"
+                onClick={() => setLoanToEdit(null)}
+              >
                 <X size={16} />
               </button>
             </div>
             <div className="modal-form-body">
               <label>
                 Person name
-                <input value={editPerson} onChange={(event) => setEditPerson(event.target.value)} required />
+                <input
+                  value={editPerson}
+                  onChange={(event) => setEditPerson(event.target.value)}
+                  required
+                />
               </label>
-              {updateLoan.error ? <div className="form-error">{updateLoan.error.message}</div> : null}
+              {updateLoan.error ? (
+                <div className="form-error">{updateLoan.error.message}</div>
+              ) : null}
             </div>
             <div className="confirm-actions">
-              <button className="secondary-button" type="button" onClick={() => setLoanToEdit(null)}>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setLoanToEdit(null)}
+              >
                 Cancel
               </button>
-              <button className="primary-button" disabled={updateLoan.isPending || !editPerson.trim()}>
+              <button
+                className="primary-button"
+                disabled={updateLoan.isPending || !editPerson.trim()}
+              >
                 Save name
               </button>
             </div>
@@ -257,18 +382,30 @@ export function LoansPage() {
       ) : null}
 
       {loanToDelete ? (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Delete loan">
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Delete loan"
+        >
           <div className="modal-panel confirm-panel">
             <div>
               <p className="eyebrow">Confirm</p>
               <h2>Move loan to Trash?</h2>
             </div>
             <p className="muted-text">
-              {loanToDelete.person} will be hidden from Loans. You can restore it from Settings, Trash.
+              {loanToDelete.person} will be hidden from Loans. You can restore
+              it from Settings, Trash.
             </p>
-            {deleteLoan.error ? <div className="form-error">{deleteLoan.error.message}</div> : null}
+            {deleteLoan.error ? (
+              <div className="form-error">{deleteLoan.error.message}</div>
+            ) : null}
             <div className="confirm-actions">
-              <button className="secondary-button" type="button" onClick={() => setLoanToDelete(null)}>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setLoanToDelete(null)}
+              >
                 Cancel
               </button>
               <button

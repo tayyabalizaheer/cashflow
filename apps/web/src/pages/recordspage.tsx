@@ -29,6 +29,11 @@ type Category = {
   name: string;
 };
 
+type StockOption = {
+  fundName: string;
+  category: string | null;
+};
+
 type ExpenseCurrencyLine = {
   id: string;
   currencyCode: string;
@@ -62,6 +67,7 @@ type RecordItem = {
   amountInvested?: string;
   value?: string;
   currency: string;
+  stockFundName?: string | null;
   mainCurrency?: string | null;
   expenseDate?: string;
   acquisitionDate?: string | null;
@@ -107,8 +113,10 @@ type AssetFormState = {
 };
 
 type InvestmentFormState = {
+  sourceMode: "stock" | "manual";
   type: string;
   name: string;
+  stockFundName: string;
   amountInvested: string;
   currency: string;
   quantity: string;
@@ -116,6 +124,7 @@ type InvestmentFormState = {
   currentValue: string;
   purchaseDate: string;
   zakatEligible: boolean;
+  notes: string;
 };
 
 const config = {
@@ -166,7 +175,11 @@ const config = {
     empty:
       "No investments yet. Add cost basis, quantity, and NAV to track value.",
     columns: [
-      { key: "name", label: "Name" },
+      {
+        key: "name",
+        label: "Name",
+        render: (row: RecordItem) => row.name ?? row.stockFundName ?? "",
+      },
       { key: "type", label: "Type" },
       {
         key: "amountInvested",
@@ -527,8 +540,10 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     expenseId: "",
   });
   const [investmentForm, setInvestmentForm] = useState<InvestmentFormState>({
+    sourceMode: "stock",
     type: "",
     name: "",
+    stockFundName: "",
     amountInvested: "",
     currency: "",
     quantity: "",
@@ -536,6 +551,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     currentValue: "",
     purchaseDate: todayInputValue(),
     zakatEligible: false,
+    notes: "",
   });
   const { data, error, isLoading } = useQuery({
     queryKey: [module],
@@ -560,6 +576,16 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     queryKey: ["expenses", "asset-import"],
     queryFn: () => api<{ data: RecordItem[] }>("/expenses?pageSize=100"),
     enabled: module === "assets",
+  });
+  const {
+    data: stockOptionsData,
+    error: stockOptionsError,
+    isLoading: isLoadingStockOptions,
+  } = useQuery({
+    queryKey: ["stock-options"],
+    queryFn: () =>
+      api<{ data: StockOption[] }>("/stocks/options", { onlineOnly: true }),
+    enabled: module === "investments" && showInvestmentForm,
   });
   const createExpense = useMutation({
     mutationFn: (payload: Record<string, unknown>) =>
@@ -614,14 +640,17 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       setShowInvestmentForm(false);
       setInvestmentForm((current) => ({
         ...current,
+        sourceMode: "stock",
         type: "",
         name: "",
+        stockFundName: "",
         amountInvested: "",
         quantity: "",
         nav: "",
         currentValue: "",
         purchaseDate: todayInputValue(),
         zakatEligible: false,
+        notes: "",
       }));
     },
   });
@@ -645,6 +674,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
   const categories = categoriesData?.data ?? [];
   const userCurrencies = userCurrenciesData?.data ?? [];
   const assetExpenses = assetExpenseData?.data ?? [];
+  const stockOptions = stockOptionsData?.data ?? [];
 
   useEffect(() => {
     if (!expenseSetup.categoryId && categories.length > 0) {
@@ -727,6 +757,31 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     setInvestmentForm((current) => ({ ...current, [key]: value }));
   }
 
+  function setInvestmentSourceMode(mode: InvestmentFormState["sourceMode"]) {
+    setInvestmentForm((current) => ({
+      ...current,
+      sourceMode: mode,
+      stockFundName: mode === "stock" ? current.stockFundName : "",
+      type:
+        mode === "stock"
+          ? "Stock"
+          : current.type === "Stock"
+            ? ""
+            : current.type,
+      name: mode === "stock" ? current.stockFundName || current.name : "",
+    }));
+  }
+
+  function chooseInvestmentStock(fundName: string) {
+    setInvestmentForm((current) => ({
+      ...current,
+      sourceMode: "stock",
+      type: "Stock",
+      name: fundName,
+      stockFundName: fundName,
+    }));
+  }
+
   function toggleSetupCurrency(currencyCode: string) {
     setExpenseSetup((current) => {
       const currencies = current.currencies.includes(currencyCode)
@@ -793,9 +848,18 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
 
   function submitInvestment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const selectedStockName =
+      investmentForm.sourceMode === "stock"
+        ? investmentForm.stockFundName.trim()
+        : "";
     createInvestment.mutate({
-      type: investmentForm.type,
-      name: investmentForm.name || undefined,
+      type:
+        investmentForm.sourceMode === "stock" ? "Stock" : investmentForm.type,
+      name:
+        investmentForm.sourceMode === "stock"
+          ? selectedStockName
+          : investmentForm.name || undefined,
+      stockFundName: selectedStockName || null,
       amountInvested: investmentForm.amountInvested,
       currency: investmentForm.currency,
       quantity: investmentForm.quantity || undefined,
@@ -803,6 +867,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       currentValue: investmentForm.currentValue || undefined,
       purchaseDate: investmentForm.purchaseDate || undefined,
       latestValuationDate: investmentForm.purchaseDate || undefined,
+      notes: investmentForm.notes || undefined,
       zakatEligible: investmentForm.zakatEligible,
       zakatPercentage: 100,
     });
@@ -1167,28 +1232,92 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                 </button>
               </div>
               <div className="modal-form-body">
-                <div className="compact-form">
-                  <label>
-                    Type
-                    <input
-                      value={investmentForm.type}
-                      onChange={(event) =>
-                        updateInvestmentForm("type", event.target.value)
-                      }
-                      placeholder="Stock, fund, gold..."
-                      required
-                    />
-                  </label>
-                  <label>
-                    Name
-                    <input
-                      value={investmentForm.name}
-                      onChange={(event) =>
-                        updateInvestmentForm("name", event.target.value)
-                      }
-                    />
-                  </label>
+                <div className="investment-source-picker segmented">
+                  <button
+                    className={
+                      investmentForm.sourceMode === "stock" ? "selected" : ""
+                    }
+                    type="button"
+                    onClick={() => setInvestmentSourceMode("stock")}
+                  >
+                    Stocks list
+                  </button>
+                  <button
+                    className={
+                      investmentForm.sourceMode === "manual" ? "selected" : ""
+                    }
+                    type="button"
+                    onClick={() => setInvestmentSourceMode("manual")}
+                  >
+                    Manual
+                  </button>
                 </div>
+                <div className="compact-form">
+                  {investmentForm.sourceMode === "stock" ? (
+                    <label>
+                      Stock
+                      <select
+                        value={investmentForm.stockFundName}
+                        onChange={(event) =>
+                          chooseInvestmentStock(event.target.value)
+                        }
+                        required
+                      >
+                        <option value="">Choose from stocks</option>
+                        {stockOptions.map((stock) => (
+                          <option key={stock.fundName} value={stock.fundName}>
+                            {stock.fundName}
+                            {stock.category ? ` - ${stock.category}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <>
+                      <label>
+                        Type
+                        <input
+                          value={investmentForm.type}
+                          onChange={(event) =>
+                            updateInvestmentForm("type", event.target.value)
+                          }
+                          placeholder="Fund, gold..."
+                          required
+                        />
+                      </label>
+                      <label>
+                        Name
+                        <input
+                          value={investmentForm.name}
+                          onChange={(event) =>
+                            updateInvestmentForm("name", event.target.value)
+                          }
+                          required
+                        />
+                      </label>
+                    </>
+                  )}
+                  {investmentForm.sourceMode === "stock" ? (
+                    <div className="stock-link-status">
+                      <span>Linked for future calculations</span>
+                    </div>
+                  ) : null}
+                </div>
+                {investmentForm.sourceMode === "stock" && stockOptionsError ? (
+                  <div className="form-error">Could not load stocks list.</div>
+                ) : null}
+                {investmentForm.sourceMode === "stock" &&
+                isLoadingStockOptions ? (
+                  <div className="empty-state">Loading stocks...</div>
+                ) : null}
+                {investmentForm.sourceMode === "stock" &&
+                !isLoadingStockOptions &&
+                !stockOptionsError &&
+                stockOptions.length === 0 ? (
+                  <div className="empty-state">
+                    No stocks available. Use Manual to enter this investment.
+                  </div>
+                ) : null}
                 <div className="compact-form">
                   <label>
                     Cost
@@ -1274,6 +1403,16 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                     />
                   </label>
                 </div>
+                <label>
+                  Notes
+                  <textarea
+                    value={investmentForm.notes}
+                    onChange={(event) =>
+                      updateInvestmentForm("notes", event.target.value)
+                    }
+                    rows={3}
+                  />
+                </label>
                 <label className="checkbox-row">
                   <input
                     type="checkbox"
@@ -1305,7 +1444,10 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                   className="primary-button"
                   disabled={
                     createInvestment.isPending ||
-                    !investmentForm.type.trim() ||
+                    (investmentForm.sourceMode === "stock"
+                      ? !investmentForm.stockFundName
+                      : !investmentForm.type.trim() ||
+                        !investmentForm.name.trim()) ||
                     !investmentForm.amountInvested ||
                     !investmentForm.currency
                   }

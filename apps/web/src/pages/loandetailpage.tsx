@@ -54,6 +54,7 @@ type Loan = {
   id: string;
   shareId: string;
   person: string;
+  pinnedAt?: string | null;
   balances?: LoanBalance[];
   transactions?: LoanTransaction[];
 };
@@ -481,7 +482,10 @@ export function LoanDetailPage() {
   async function shareLoanLink() {
     if (!loan) return;
     const url = shareUrl(loan.shareId);
-    const text = loanShareText(loan, user?.fullName.trim() || "the account owner");
+    const text = loanShareText(
+      loan,
+      user?.fullName.trim() || "the account owner",
+    );
     if (navigator.share) {
       await navigator.share({
         title: `${loan.person} loan`,
@@ -608,11 +612,10 @@ export function LoanDetailPage() {
         </label>
       </div>
 
-      <article className="expense-card loan-balance-card">
-        <div className="loan-balance-header">
-          <span>Balance</span>
-          <strong>{balanceTotalText}</strong>
-        </div>
+      <article
+        className="expense-card loan-balance-card"
+        aria-label={`Balance ${balanceTotalText}`}
+      >
         <div className="loan-balance-grid">
           {displayedBalances.map((balance) => (
             <div className="loan-balance-item" key={balance.currency}>
@@ -651,60 +654,62 @@ export function LoanDetailPage() {
                 <small>{transaction.currency}</small>
               </div>
               <small>{transaction.purpose}</small>
-              <time>
-                {new Date(transaction.transactionDate).toLocaleDateString()}
-              </time>
-              {isPublicView ? null : (
-                <div className="row-menu-wrap loan-transaction-menu">
-                  <button
-                    className="icon-button"
-                    type="button"
-                    title="Transaction actions"
-                    onClick={() =>
-                      setOpenTransactionMenuId((current) =>
-                        current === transaction.id ? null : transaction.id,
-                      )
-                    }
-                  >
-                    <MoreVertical size={16} />
-                  </button>
-                  {openTransactionMenuId === transaction.id ? (
-                    <div
-                      className="action-menu"
-                      role="menu"
-                      aria-label={`${transaction.purpose} actions`}
+              <div className="loan-transaction-side">
+                {isPublicView ? null : (
+                  <div className="row-menu-wrap loan-transaction-menu">
+                    <button
+                      className="icon-button"
+                      type="button"
+                      title="Transaction actions"
+                      onClick={() =>
+                        setOpenTransactionMenuId((current) =>
+                          current === transaction.id ? null : transaction.id,
+                        )
+                      }
                     >
-                      <button
-                        type="button"
-                        disabled={!images.length}
-                        onClick={() => {
-                          setOpenTransactionMenuId(null);
-                          setImageTransaction(transaction);
-                        }}
+                      <MoreVertical size={16} />
+                    </button>
+                    {openTransactionMenuId === transaction.id ? (
+                      <div
+                        className="action-menu"
+                        role="menu"
+                        aria-label={`${transaction.purpose} actions`}
                       >
-                        <Image size={15} />
-                        <span>Images</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openEditTransaction(transaction)}
-                      >
-                        <Pencil size={15} />
-                        <span>Edit</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          requestMoveTransactionToTrash(transaction)
-                        }
-                      >
-                        <Trash2 size={15} />
-                        <span>Move to trash</span>
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              )}
+                        <button
+                          type="button"
+                          disabled={!images.length}
+                          onClick={() => {
+                            setOpenTransactionMenuId(null);
+                            setImageTransaction(transaction);
+                          }}
+                        >
+                          <Image size={15} />
+                          <span>Images</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openEditTransaction(transaction)}
+                        >
+                          <Pencil size={15} />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            requestMoveTransactionToTrash(transaction)
+                          }
+                        >
+                          <Trash2 size={15} />
+                          <span>Move to trash</span>
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+                <time>
+                  {new Date(transaction.transactionDate).toLocaleDateString()}
+                </time>
+              </div>
             </div>
           );
         })}

@@ -74,7 +74,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -177,21 +178,21 @@ a {
 
 .main-panel {
   min-width: 0;
-  padding: 34px;
+  padding: 24px;
 }
 
 .page {
   max-width: 1180px;
   margin: 0 auto;
   display: grid;
-  gap: 24px;
+  gap: 16px;
 }
 
 .public-share-page {
   width: 100%;
-  padding: 24px max(18px, env(safe-area-inset-left))
-    calc(24px + env(safe-area-inset-bottom))
-    max(18px, env(safe-area-inset-right));
+  padding: 12px max(12px, env(safe-area-inset-left))
+    calc(12px + env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-right));
 }
 
 .page-header {
@@ -295,7 +296,8 @@ h2 {
 }
 
 input,
-select {
+select,
+textarea {
   min-height: 42px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -304,8 +306,15 @@ select {
   padding: 0 12px;
 }
 
+textarea {
+  min-height: 86px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
 input[aria-invalid="true"],
-select[aria-invalid="true"] {
+select[aria-invalid="true"],
+textarea[aria-invalid="true"] {
   border-color: var(--berry);
   box-shadow: 0 0 0 3px rgba(177, 70, 90, 0.12);
 }
@@ -993,26 +1002,32 @@ th {
 
 .expense-list {
   display: grid;
-  gap: 14px;
+  gap: 8px;
 }
 
 .expense-card {
   display: grid;
-  gap: 14px;
-  padding: 18px;
+  gap: 10px;
+  padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--paper);
-  box-shadow: 0 18px 50px rgba(23, 35, 34, 0.08);
+  box-shadow: none;
 }
 
 .expense-card.loan-tile {
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
+  align-items: center;
+  min-height: 64px;
+}
+
+.expense-card.loan-tile.pinned {
+  border-color: rgba(244, 201, 93, 0.62);
 }
 
 .loan-tile .expense-card-header {
   min-width: 0;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(0, 1.8fr);
   grid-column: 1;
   grid-row: 1;
 }
@@ -1020,7 +1035,7 @@ th {
 .loan-tile .row-menu-wrap {
   grid-column: 2;
   grid-row: 1;
-  align-self: start;
+  align-self: center;
   justify-self: end;
 }
 
@@ -1048,6 +1063,23 @@ th {
   gap: 14px;
   align-items: center;
   padding: 0;
+}
+
+.loan-title-cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.loan-title-cell strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.loan-pin-indicator {
+  flex: 0 0 auto;
+  color: var(--brass);
 }
 
 .expense-card-header.static {
@@ -1157,14 +1189,14 @@ th {
 .expense-summary-row {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
 .expense-summary-cell {
   min-height: auto;
   min-width: 150px;
-  padding: 0 18px 0 0;
+  padding: 0 12px 0 0;
   border: 0;
   border-right: 1px solid var(--line);
   background: transparent;
@@ -1323,7 +1355,7 @@ th {
 
 .transaction-list {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .form-actions,
@@ -1337,12 +1369,12 @@ th {
 .transaction-row {
   display: grid;
   grid-template-columns: minmax(140px, 1fr) auto auto;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
-  padding: 10px 12px;
+  padding: 9px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--mist);
+  background: transparent;
   touch-action: pan-y;
 }
 
@@ -1408,33 +1440,13 @@ th {
 }
 
 .loan-balance-card {
-  padding: 16px 18px;
-}
-
-.loan-balance-header {
-  display: grid;
-  gap: 5px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line);
-}
-
-.loan-balance-header span {
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.loan-balance-header strong {
-  font-size: 1.35rem;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
+  padding: 12px 14px;
 }
 
 .loan-balance-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 14px;
+  gap: 10px;
 }
 
 .loan-balance-item {
@@ -1535,9 +1547,9 @@ th {
 
 .transaction-row.loan-transaction-row {
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px 14px;
+  gap: 4px 10px;
   align-items: start;
-  padding: 14px 16px;
+  padding: 10px 12px;
 }
 
 .loan-transaction-amount {
@@ -1548,7 +1560,7 @@ th {
 }
 
 .loan-transaction-amount strong {
-  font-size: 1.35rem;
+  font-size: 1.2rem;
   line-height: 1;
   word-break: break-word;
 }
@@ -1561,8 +1573,18 @@ th {
 }
 
 .loan-transaction-row time {
-  grid-column: 1;
-  justify-self: start;
+  justify-self: end;
+  text-align: right;
+}
+
+.loan-transaction-side {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: grid;
+  justify-items: end;
+  align-content: start;
+  gap: 6px;
+  min-width: 74px;
 }
 
 .loan-transaction-row.credit {
@@ -1589,13 +1611,7 @@ th {
 
 .loan-transaction-row .transaction-actions,
 .loan-transaction-row .loan-transaction-menu {
-  grid-column: 2;
   justify-self: end;
-  align-self: end;
-}
-
-.loan-transaction-row .loan-transaction-menu {
-  grid-row: 1;
   align-self: start;
 }
 
@@ -1946,6 +1962,23 @@ th {
 .stock-picker {
   display: grid;
   gap: 10px;
+}
+
+.investment-source-picker {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.stock-link-status {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid rgba(15, 95, 92, 0.18);
+  border-radius: 8px;
+  background: var(--teal-soft);
+  color: var(--teal);
+  font-size: 0.86rem;
+  font-weight: 800;
 }
 
 .stock-picker-header {
@@ -2315,19 +2348,19 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
   }
 
   .main-panel {
-    padding: 0 16px calc(110px + env(safe-area-inset-bottom));
+    padding: 0 10px calc(98px + env(safe-area-inset-bottom));
   }
 
   .page {
-    gap: 18px;
+    gap: 12px;
   }
 
   .page-header {
     position: sticky;
     top: 0;
     z-index: 30;
-    min-height: 78px;
-    padding: 14px 0 12px;
+    min-height: 68px;
+    padding: 10px 0 8px;
     background: var(--page-chrome-bg);
     box-shadow: 0 1px 0 var(--line);
   }
