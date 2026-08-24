@@ -17,7 +17,7 @@ type User = {
 type AuthContextValue = {
   user: User | null;
   token: string | null;
-  localAvailable: boolean;
+  localAvailable: boolean | null;
   localMode: boolean;
   initializing: boolean;
   syncProgress: BootstrapProgress | null;
@@ -43,7 +43,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [localAvailable, setLocalAvailable] = useState(false);
+  const [localAvailable, setLocalAvailable] = useState<boolean | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [syncProgress, setSyncProgress] = useState<BootstrapProgress | null>(
     null,
@@ -65,23 +65,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSyncProgress(null);
   }
 
-  async function prepareRestore(nextUser: User, nextToken: string) {
+  function prepareRestore(nextUser: User, nextToken: string) {
     receiveSession(nextUser, nextToken);
-    await flushOfflineMutations().catch(() => undefined);
-    setLocalAvailable(await hasLocalData());
-    try {
-      const summary = await api<{ data: BootstrapSummary }>("/sync/summary");
-      setRestoreSummary(summary.data);
-    } catch (error) {
-      setRestoreSummary({ total: 0, modules: [] });
-      throw error;
-    }
+    void (async () => {
+      await flushOfflineMutations().catch(() => undefined);
+      setLocalAvailable(await hasLocalData());
+      try {
+        const summary = await api<{ data: BootstrapSummary }>("/sync/summary");
+        setRestoreSummary(summary.data);
+      } catch {
+        setRestoreSummary({ total: 0, modules: [] });
+      }
+    })();
   }
 
   async function restoreOnlineData() {
     setSyncProgress({ percent: 1, message: "Preparing local database" });
     try {
       await bootstrapLocalData(setSyncProgress);
+      setLocalAvailable(await hasLocalData());
       setRestoreSummary(null);
     } finally {
       setSyncProgress(null);
@@ -94,6 +96,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    void hasLocalData().then((available) => {
+      if (active) setLocalAvailable(available);
+    });
+
     async function refreshSession() {
       try {
         const response = await api<{
@@ -150,7 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       token,
       localAvailable,
-      localMode: !user && localAvailable,
+      localMode: !user && Boolean(localAvailable),
       initializing,
       syncProgress,
       restoreSummary,
@@ -163,7 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           method: "POST",
           body: JSON.stringify({ email, password, rememberMe }),
         });
-        await prepareRestore(response.data.user, response.data.accessToken);
+        prepareRestore(response.data.user, response.data.accessToken);
       },
       async register(input) {
         const response = await api<{
@@ -172,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           method: "POST",
           body: JSON.stringify({ ...input, termsAccepted: true }),
         });
-        await prepareRestore(response.data.user, response.data.accessToken);
+        prepareRestore(response.data.user, response.data.accessToken);
       },
       async logout() {
         await api("/auth/logout", { method: "POST" }).catch(() => undefined);

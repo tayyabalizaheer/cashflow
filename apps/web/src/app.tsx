@@ -20,15 +20,10 @@ import { ZakatPage } from "./pages/zakatpage";
 import { useOnlineSync } from "./lib/useonlinesync";
 
 function Protected() {
-  const { user, localAvailable, initializing } = useAuth();
+  const { user, localAvailable } = useAuth();
   useOnlineSync(Boolean(user));
-  if (initializing)
-    return (
-      <div className="center-page">
-        <div className="empty-state">Checking session...</div>
-      </div>
-    );
-  if (!user && !localAvailable) return <Navigate to="/login" replace />;
+  if (!user && localAvailable === false)
+    return <Navigate to="/login" replace />;
   return <Layout />;
 }
 
