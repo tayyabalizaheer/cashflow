@@ -778,8 +778,10 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
           { ...loan, transactions: updatedTransactions, updatedAt: now },
           now,
         );
+        deleteCachedTrashRecord(db, type, id);
         return updatedTransactions.find((transaction) => transaction.id === id);
       }
+      deleteCachedTrashRecord(db, type, id);
     }
     const module = trashModuleForType(type ?? "");
     const record = module
@@ -826,6 +828,7 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
           ["LOAN_TRANSACTION", id],
         );
       }
+      deleteCachedTrashRecord(db, type, id);
       return { deleted: true };
     }
     const module = trashModuleForType(type ?? "");

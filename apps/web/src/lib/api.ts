@@ -49,6 +49,8 @@ export async function api<T>(
     method !== "GET" &&
     !path.startsWith("/auth/") &&
     !path.startsWith("/sync/");
+  const mutationCanChangeTrash =
+    canQueue && (method === "DELETE" || path.startsWith("/trash/"));
   const needsSession = !path.startsWith("/auth/");
 
   if (method === "GET" && !onlineOnly) {
@@ -59,8 +61,11 @@ export async function api<T>(
     }
   }
 
-  if (canQueue && method === "DELETE") {
+  if (mutationCanChangeTrash) {
     optimisticWriteRefreshBlockedUntil = Date.now() + 10_000;
+  }
+
+  if (canQueue && method === "DELETE") {
     await applySuccessfulMutationToLocal({
       path,
       method,
@@ -149,7 +154,7 @@ export async function api<T>(
 
   if (response.status === 204) {
     if (canQueue) {
-      optimisticWriteRefreshBlockedUntil = 0;
+      if (!mutationCanChangeTrash) optimisticWriteRefreshBlockedUntil = 0;
       await applySuccessfulMutationToLocal({
         path,
         method,
@@ -162,7 +167,7 @@ export async function api<T>(
 
   const body = await response.json();
   if (canQueue) {
-    optimisticWriteRefreshBlockedUntil = 0;
+    if (!mutationCanChangeTrash) optimisticWriteRefreshBlockedUntil = 0;
     const stored = await storeServerResponseForPath(path, body, {
       allowWithPendingMutations: true,
     });
@@ -217,6 +222,7 @@ async function refreshServerData(path: string, requestOptions: RequestInit) {
   delete backgroundOptions.signal;
   const body = await fetchServerJson(path, backgroundOptions);
   if (!body) return false;
+  if (Date.now() < optimisticWriteRefreshBlockedUntil) return false;
 
   const stored = await storeServerResponseForPath(path, body);
   if (!stored) return false;
