@@ -1431,11 +1431,21 @@ function upsertServerRecords(
   }
 }
 
+type StoreServerResponseOptions = {
+  allowWithPendingMutations?: boolean;
+};
+
 export async function storeServerResponseForPath(
   path: string,
   responseBody: unknown,
+  options: StoreServerResponseOptions = {},
 ) {
-  if (await hasPendingLocalMutations()) return false;
+  if (
+    !options.allowWithPendingMutations &&
+    (await hasPendingLocalMutations())
+  ) {
+    return false;
+  }
 
   const pathOnly = path.split("?")[0] ?? path;
   const syncedAt = new Date().toISOString();
@@ -1465,13 +1475,22 @@ export async function storeServerResponseForPath(
     return true;
   }
 
-  const detailModule = pathOnly.match(/^\/expenses\/[^/]+$/)
-    ? "expenses"
-    : pathOnly.match(/^\/loans\/[^/]+$/) ||
-        pathOnly.match(/^\/loans\/share\/[^/]+$/) ||
-        pathOnly.match(/^\/public\/loans\/[^/]+$/)
-      ? "loans"
-      : null;
+  const createModuleMap: Record<string, string> = {
+    "/expenses": "expenses",
+    "/loans": "loans",
+    "/investments": "investments",
+    "/assets": "assets",
+  };
+  const createModule = createModuleMap[pathOnly];
+  const detailModule = createModule
+    ? createModule
+    : pathOnly.match(/^\/expenses\/[^/]+$/)
+      ? "expenses"
+      : pathOnly.match(/^\/loans\/[^/]+$/) ||
+          pathOnly.match(/^\/loans\/share\/[^/]+$/) ||
+          pathOnly.match(/^\/public\/loans\/[^/]+$/)
+        ? "loans"
+        : null;
   const record = responseRecord(responseBody);
 
   if (detailModule && record) {
@@ -1495,6 +1514,48 @@ export async function storeServerResponseForPath(
   }
 
   return false;
+}
+
+function mutationBodyWithServerId(
+  body: string | undefined,
+  responseBody: unknown,
+) {
+  const record = responseRecord(responseBody);
+  if (!record || (!record.id && !record.shareId)) return body;
+
+  let payload: unknown = {};
+  if (body) {
+    try {
+      payload = JSON.parse(body) as unknown;
+    } catch {
+      payload = {};
+    }
+  }
+
+  if (!isRecord(payload)) return body;
+  return serialize({
+    ...payload,
+    ...(record.id ? { id: record.id } : {}),
+    ...(record.shareId ? { shareId: record.shareId } : {}),
+  });
+}
+
+export async function applySuccessfulMutationToLocal(
+  input: Pick<OfflineMutation, "path" | "method" | "body">,
+  responseBody?: unknown,
+) {
+  const db = await getLocalDatabase();
+  const body = mutationBodyWithServerId(input.body, responseBody);
+  const mutation: OfflineMutation = {
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    path: input.path,
+    method: input.method,
+    ...(body ? { body } : {}),
+  };
+  const localData = applyLocalMutation(db, mutation);
+  await persistDatabase(db);
+  return localData;
 }
 
 export async function updateLocalLoan(

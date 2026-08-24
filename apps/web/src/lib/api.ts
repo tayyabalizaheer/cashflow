@@ -2,6 +2,7 @@ import { queueOfflineMutation } from "./offlinequeue";
 import { appVersionHeader, registerApiAppVersion } from "./appversion";
 import { API_URL } from "./config";
 import {
+  applySuccessfulMutationToLocal,
   hasPendingLocalMutations,
   localResponseForPath,
   storeServerResponseForPath,
@@ -67,9 +68,13 @@ export async function api<T>(
     const accessToken = getAccessToken();
     response = await fetch(`${API_URL}${path}`, {
       ...requestOptions,
+      ...(method === "GET" ? { cache: "no-store" as const } : {}),
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
+        ...(method === "GET"
+          ? { "Cache-Control": "no-cache", Pragma: "no-cache" }
+          : {}),
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         ...requestOptions.headers,
       },
@@ -125,23 +130,49 @@ export async function api<T>(
   }
 
   if (response.status === 204) {
+    if (canQueue) {
+      await applySuccessfulMutationToLocal({
+        path,
+        method,
+        ...(typeof options.body === "string" ? { body: options.body } : {}),
+      });
+      notifyLocalDataChanged(path);
+    }
     return undefined as T;
   }
 
-  return response.json();
+  const body = await response.json();
+  if (canQueue) {
+    const stored = await storeServerResponseForPath(path, body, {
+      allowWithPendingMutations: true,
+    });
+    if (!stored) {
+      await applySuccessfulMutationToLocal(
+        {
+          path,
+          method,
+          ...(typeof options.body === "string" ? { body: options.body } : {}),
+        },
+        body,
+      );
+    }
+    notifyLocalDataChanged(path);
+  }
+  return body;
 }
 
 function apiHeaders(requestOptions: RequestInit) {
   const accessToken = getAccessToken();
   return {
     "Content-Type": "application/json",
+    "Cache-Control": "no-cache",
+    Pragma: "no-cache",
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     ...requestOptions.headers,
   };
 }
 
 function scheduleBackgroundRefresh(path: string, requestOptions: RequestInit) {
-  if (!navigator.onLine) return;
   if (pendingBackgroundRefreshes.has(path)) return;
 
   const lastRefresh = recentBackgroundRefreshes.get(path) ?? 0;
@@ -169,18 +200,23 @@ async function refreshServerData(path: string, requestOptions: RequestInit) {
   const stored = await storeServerResponseForPath(path, body);
   if (!stored) return false;
 
+  notifyLocalDataChanged(path);
+  return true;
+}
+
+function notifyLocalDataChanged(path: string) {
   window.dispatchEvent(
     new CustomEvent("cash-flow:local-data-refreshed", {
       detail: { path },
     }),
   );
-  return true;
 }
 
 async function fetchServerJson(path: string, requestOptions: RequestInit) {
   try {
     let response = await fetch(`${API_URL}${path}`, {
       ...requestOptions,
+      cache: "no-store",
       credentials: "include",
       headers: apiHeaders(requestOptions),
     });
@@ -193,6 +229,7 @@ async function fetchServerJson(path: string, requestOptions: RequestInit) {
     ) {
       response = await fetch(`${API_URL}${path}`, {
         ...requestOptions,
+        cache: "no-store",
         credentials: "include",
         headers: apiHeaders(requestOptions),
       });
