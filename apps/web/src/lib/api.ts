@@ -1,7 +1,10 @@
 import { queueOfflineMutation } from "./offlinequeue";
 import { appVersionHeader, registerApiAppVersion } from "./appversion";
 import { API_URL } from "./config";
-import { localResponseForPath } from "./localsqlite";
+import {
+  localResponseForPath,
+  storeServerResponseForPath,
+} from "./localsqlite";
 import { getAccessToken, setAccessToken } from "./sessiontoken";
 export { setAccessToken } from "./sessiontoken";
 
@@ -21,6 +24,10 @@ type ApiRequestOptions = RequestInit & {
   retryingAfterRefresh?: boolean;
 };
 
+const backgroundRefreshTtlMs = 30_000;
+const recentBackgroundRefreshes = new Map<string, number>();
+const pendingBackgroundRefreshes = new Set<string>();
+
 export async function api<T>(
   path: string,
   options: ApiRequestOptions = {},
@@ -35,9 +42,13 @@ export async function api<T>(
     method !== "GET" &&
     !path.startsWith("/auth/") &&
     !path.startsWith("/sync/");
-  if (method === "GET" && !onlineOnly && !navigator.onLine) {
+
+  if (method === "GET" && !onlineOnly) {
     const local = await localResponseForPath(path);
-    if (local) return local as T;
+    if (local) {
+      scheduleBackgroundRefresh(path, requestOptions);
+      return local as T;
+    }
   }
 
   if (canQueue && !navigator.onLine) {
@@ -117,6 +128,74 @@ export async function api<T>(
   }
 
   return response.json();
+}
+
+function apiHeaders(requestOptions: RequestInit) {
+  const accessToken = getAccessToken();
+  return {
+    "Content-Type": "application/json",
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    ...requestOptions.headers,
+  };
+}
+
+function scheduleBackgroundRefresh(path: string, requestOptions: RequestInit) {
+  if (!navigator.onLine) return;
+  if (pendingBackgroundRefreshes.has(path)) return;
+
+  const lastRefresh = recentBackgroundRefreshes.get(path) ?? 0;
+  if (Date.now() - lastRefresh < backgroundRefreshTtlMs) return;
+
+  recentBackgroundRefreshes.set(path, Date.now());
+  pendingBackgroundRefreshes.add(path);
+  void refreshServerData(path, requestOptions).finally(() => {
+    pendingBackgroundRefreshes.delete(path);
+  });
+}
+
+async function refreshServerData(path: string, requestOptions: RequestInit) {
+  const backgroundOptions = { ...requestOptions };
+  delete backgroundOptions.signal;
+  const body = await fetchServerJson(path, backgroundOptions);
+  if (!body) return;
+
+  const stored = await storeServerResponseForPath(path, body);
+  if (!stored) return;
+
+  window.dispatchEvent(
+    new CustomEvent("cash-flow:local-data-refreshed", {
+      detail: { path },
+    }),
+  );
+}
+
+async function fetchServerJson(path: string, requestOptions: RequestInit) {
+  try {
+    let response = await fetch(`${API_URL}${path}`, {
+      ...requestOptions,
+      credentials: "include",
+      headers: apiHeaders(requestOptions),
+    });
+    registerApiAppVersion(response.headers.get(appVersionHeader));
+
+    if (
+      response.status === 401 &&
+      !path.startsWith("/auth/") &&
+      (await refreshAccessToken())
+    ) {
+      response = await fetch(`${API_URL}${path}`, {
+        ...requestOptions,
+        credentials: "include",
+        headers: apiHeaders(requestOptions),
+      });
+      registerApiAppVersion(response.headers.get(appVersionHeader));
+    }
+
+    if (!response.ok || response.status === 204) return null;
+    return response.json();
+  } catch {
+    return null;
+  }
 }
 
 async function refreshAccessToken() {

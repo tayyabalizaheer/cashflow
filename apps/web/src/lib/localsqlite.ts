@@ -340,6 +340,9 @@ function localCurrencyCodes(db: Database) {
 }
 
 function localUserCurrencies(db: Database) {
+  const cachedCurrencies = readActiveModuleRecords(db, "user-currencies");
+  if (cachedCurrencies.length > 0) return cachedCurrencies;
+
   const codes = localCurrencyCodes(db);
   const safeCodes = codes.length ? codes : ["USD"];
   return safeCodes.map((currencyCode, index) => ({
@@ -357,7 +360,16 @@ function localUserCurrencies(db: Database) {
   }));
 }
 
+function localCurrencies(db: Database) {
+  const cachedCurrencies = readActiveModuleRecords(db, "currencies");
+  if (cachedCurrencies.length > 0) return cachedCurrencies;
+  return localUserCurrencies(db).map((item) => item.currency);
+}
+
 function localCategories(db: Database) {
+  const cachedCategories = readActiveModuleRecords(db, "categories");
+  if (cachedCategories.length > 0) return cachedCategories;
+
   const categories = new Map<string, Record<string, unknown>>();
   readActiveModuleRecords(db, "expenses").forEach((expense) => {
     if (isRecord(expense.category) && typeof expense.category.id === "string") {
@@ -1322,6 +1334,103 @@ export async function hasLocalData() {
   return recordCount > 0 || mutationCount > 0;
 }
 
+function responseData(responseBody: unknown) {
+  return isRecord(responseBody) ? responseBody.data : undefined;
+}
+
+function responseRecord(responseBody: unknown) {
+  const data = responseData(responseBody);
+  return isRecord(data) ? data : null;
+}
+
+function responseRecords(responseBody: unknown) {
+  const data = responseData(responseBody);
+  return Array.isArray(data) ? data.filter(isRecord) : null;
+}
+
+function upsertServerRecords(
+  db: Database,
+  module: string,
+  records: Array<Record<string, unknown>>,
+  syncedAt: string,
+) {
+  records.forEach((record) => {
+    if (module === "loans") {
+      writeLoanWithBalances(db, record, syncedAt);
+      return;
+    }
+    upsertLocalRecord(db, module, record, syncedAt);
+  });
+
+  if (["expenses", "loans", "investments", "assets"].includes(module)) {
+    insertAttachments(
+      db,
+      collectBootstrapAttachments(module, records),
+      syncedAt,
+    );
+  }
+}
+
+export async function storeServerResponseForPath(
+  path: string,
+  responseBody: unknown,
+) {
+  const pathOnly = path.split("?")[0] ?? path;
+  const syncedAt = new Date().toISOString();
+  const listModuleMap: Record<string, string> = {
+    "/expenses": "expenses",
+    "/loans": "loans",
+    "/investments": "investments",
+    "/assets": "assets",
+    "/categories": "categories",
+    "/user-currencies": "user-currencies",
+    "/currencies": "currencies",
+  };
+  const listModule = listModuleMap[pathOnly];
+  const records = responseRecords(responseBody);
+
+  if (listModule && records) {
+    const db = await getLocalDatabase();
+    db.run("BEGIN TRANSACTION");
+    try {
+      upsertServerRecords(db, listModule, records, syncedAt);
+      db.run("COMMIT");
+    } catch (error) {
+      db.run("ROLLBACK");
+      throw error;
+    }
+    await persistDatabase(db);
+    return true;
+  }
+
+  const detailModule = pathOnly.match(/^\/expenses\/[^/]+$/)
+    ? "expenses"
+    : pathOnly.match(/^\/loans\/[^/]+$/) ||
+        pathOnly.match(/^\/loans\/share\/[^/]+$/) ||
+        pathOnly.match(/^\/public\/loans\/[^/]+$/)
+      ? "loans"
+      : null;
+  const record = responseRecord(responseBody);
+
+  if (detailModule && record) {
+    const db = await getLocalDatabase();
+    if (detailModule === "loans") {
+      writeLoanWithBalances(db, record, syncedAt);
+    } else {
+      upsertLocalRecord(db, detailModule, record, syncedAt);
+    }
+    insertAttachments(
+      db,
+      collectBootstrapAttachments(detailModule, [record]),
+      syncedAt,
+    );
+    await persistDatabase(db);
+    return true;
+  }
+
+  return false;
+}
+
 export async function localResponseForPath(path: string) {
   const db = await getLocalDatabase();
   const pathOnly = path.split("?")[0] ?? path;
@@ -1344,7 +1453,7 @@ export async function localResponseForPath(path: string) {
     return { data: localUserCurrencies(db) };
   }
   if (pathOnly === "/currencies") {
-    return { data: localUserCurrencies(db).map((item) => item.currency) };
+    return { data: localCurrencies(db) };
   }
   if (pathOnly === "/categories") return { data: localCategories(db) };
   if (pathOnly === "/expense-purposes") {
@@ -1353,7 +1462,7 @@ export async function localResponseForPath(path: string) {
   if (pathOnly === "/loan-purposes") {
     return { data: localPurposes(readActiveModuleRecords(db, "loans")) };
   }
-  if (path === "/loans") {
+  if (pathOnly === "/loans") {
     return { data: readActiveModuleRecords(db, "loans") };
   }
   const loanMatch = path.match(/^\/loans\/([^/]+)$/);

@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./components/authprovider";
 import { AppUpdatePrompt } from "./components/appupdateprompt";
@@ -19,6 +21,69 @@ import { TrashPage } from "./pages/trashpage";
 import { ZakatPage } from "./pages/zakatpage";
 import { useOnlineSync } from "./lib/useonlinesync";
 
+function refreshedQueryKeys(path: string) {
+  const pathOnly = path.split("?")[0] ?? path;
+  const keys: unknown[][] = [["dashboard"]];
+
+  if (pathOnly === "/expenses" || pathOnly.startsWith("/expenses/")) {
+    keys.push(["expenses"], ["expense-purposes"], ["categories"], ["assets"]);
+    const expenseId = pathOnly.match(/^\/expenses\/([^/]+)$/)?.[1];
+    if (expenseId) keys.push(["expense", expenseId]);
+  } else if (
+    pathOnly === "/loans" ||
+    pathOnly.startsWith("/loans/") ||
+    pathOnly.startsWith("/public/loans/")
+  ) {
+    keys.push(["loans"], ["loan-purposes"]);
+    const loanId = pathOnly.match(/^\/loans\/([^/]+)$/)?.[1];
+    if (loanId) keys.push(["loan", loanId]);
+  } else if (pathOnly === "/investments") {
+    keys.push(["investments"]);
+  } else if (pathOnly === "/assets") {
+    keys.push(["assets"]);
+  } else if (pathOnly === "/categories") {
+    keys.push(["categories"]);
+  } else if (pathOnly === "/user-currencies") {
+    keys.push(["user-currencies"]);
+  } else if (pathOnly === "/currencies") {
+    keys.push(["currencies"]);
+  }
+
+  return keys;
+}
+
+function LocalDataRefreshListener() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const onLocalDataRefreshed = (event: Event) => {
+      const path =
+        event instanceof CustomEvent && typeof event.detail?.path === "string"
+          ? event.detail.path
+          : "";
+      refreshedQueryKeys(path).forEach((queryKey) => {
+        void queryClient.invalidateQueries({
+          queryKey,
+          refetchType: "active",
+        });
+      });
+    };
+
+    window.addEventListener(
+      "cash-flow:local-data-refreshed",
+      onLocalDataRefreshed,
+    );
+    return () => {
+      window.removeEventListener(
+        "cash-flow:local-data-refreshed",
+        onLocalDataRefreshed,
+      );
+    };
+  }, [queryClient]);
+
+  return null;
+}
+
 function Protected() {
   const { user, localAvailable } = useAuth();
   useOnlineSync(Boolean(user));
@@ -31,6 +96,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <LocalDataRefreshListener />
         <AppUpdatePrompt />
         <Routes>
           <Route path="/login" element={<AuthPage />} />
