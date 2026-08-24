@@ -880,13 +880,10 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
 
   function scheduleDeleteExpense(expense: RecordItem) {
     setConfirmExpense(null);
-    setUndoExpense(expense);
     if (deleteTimer.current) clearTimeout(deleteTimer.current);
-    deleteTimer.current = setTimeout(() => {
-      deleteExpense.mutate(expense.id);
-      setUndoExpense(null);
-      deleteTimer.current = null;
-    }, 5000);
+    deleteExpense.mutate(expense.id);
+    setUndoExpense(null);
+    deleteTimer.current = null;
   }
 
   function undoDeleteExpense() {
@@ -1716,12 +1713,10 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
         >
           <section className="modal-panel confirm-panel">
             <div>
-              <p className="eyebrow">Delete</p>
+              <p className="eyebrow">Move to trash</p>
               <h2>{confirmExpense.name ?? confirmExpense.purpose}</h2>
             </div>
-            <p>
-              This expense will be deleted. You will have 5 seconds to undo.
-            </p>
+            <p>This expense will move to trash immediately.</p>
             <div className="confirm-actions">
               <button
                 className="secondary-button"
@@ -1735,7 +1730,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                 type="button"
                 onClick={() => scheduleDeleteExpense(confirmExpense)}
               >
-                Delete
+                Move to trash
               </button>
             </div>
           </section>

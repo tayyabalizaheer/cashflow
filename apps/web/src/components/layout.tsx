@@ -7,13 +7,14 @@ import {
   MoreHorizontal,
   Settings,
   TrendingUp,
-  WalletCards
+  WalletCards,
 } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "./authprovider";
 import { useTheme } from "./themeprovider";
 import { versionedAssetUrl } from "../lib/appversion";
+import { useCloseActionMenu } from "../lib/usecloseactionmenu";
 
 const items = [
   { to: "/", label: "Dashboard", icon: ChartPie },
@@ -23,7 +24,7 @@ const items = [
   { to: "/stocks", label: "Stocks", icon: TrendingUp },
   { to: "/assets", label: "Assets", icon: Building2 },
   { to: "/zakat", label: "Zakat", icon: Calculator },
-  { to: "/settings", label: "Settings", icon: Settings }
+  { to: "/settings", label: "Settings", icon: Settings },
 ];
 
 const mobileMainItems = items.slice(0, 4);
@@ -39,6 +40,11 @@ export function Layout() {
       ? location.pathname === item.to
       : location.pathname.startsWith(item.to),
   );
+  useCloseActionMenu(
+    showMoreMenu,
+    () => setShowMoreMenu(false),
+    ".bottom-more-wrap",
+  );
 
   return (
     <div className="shell">
@@ -52,7 +58,13 @@ export function Layout() {
         </NavLink>
         <nav className="nav-list">
           {items.map((item) => (
-            <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}>
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                isActive ? "nav-item active" : "nav-item"
+              }
+            >
               <item.icon size={19} />
               <span>{item.label}</span>
             </NavLink>
@@ -72,14 +84,25 @@ export function Layout() {
 
       <nav className="bottom-nav" aria-label="Primary mobile">
         {mobileMainItems.map((item) => (
-          <NavLink key={item.to} to={item.to} onClick={() => setShowMoreMenu(false)} className={({ isActive }) => (isActive ? "bottom-item active" : "bottom-item")}>
+          <NavLink
+            key={item.to}
+            to={item.to}
+            onClick={() => setShowMoreMenu(false)}
+            className={({ isActive }) =>
+              isActive ? "bottom-item active" : "bottom-item"
+            }
+          >
             <item.icon size={20} />
             <span>{item.label}</span>
           </NavLink>
         ))}
         <div className="bottom-more-wrap">
           <button
-            className={moreIsActive || showMoreMenu ? "bottom-item active" : "bottom-item"}
+            className={
+              moreIsActive || showMoreMenu
+                ? "bottom-item active"
+                : "bottom-item"
+            }
             type="button"
             onClick={() => setShowMoreMenu((current) => !current)}
             aria-expanded={showMoreMenu}

@@ -776,7 +776,10 @@ export function ExpenseDetailPage() {
             editingTransactionId ? "Edit transaction" : "Add transaction"
           }
         >
-          <section className="modal-panel transaction-modal">
+          <form
+            className="modal-panel form-modal transaction-modal"
+            onSubmit={submitTransaction}
+          >
             <div className="modal-header">
               <div>
                 <p className="eyebrow">Transaction</p>
@@ -795,7 +798,7 @@ export function ExpenseDetailPage() {
                 <X size={16} />
               </button>
             </div>
-            <form className="transaction-entry" onSubmit={submitTransaction}>
+            <div className="modal-form-body transaction-entry">
               <datalist id="expense-purpose-options">
                 {purposeData?.data.map((purpose) => (
                   <option key={purpose} value={purpose} />
@@ -910,25 +913,25 @@ export function ExpenseDetailPage() {
               {saveError ? (
                 <div className="form-error">{saveError.message}</div>
               ) : null}
-              <div className="form-actions">
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={cancelEdit}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="primary-button"
-                  disabled={isSaving || !canSaveTransaction}
-                >
-                  {editingTransactionId
-                    ? "Update transaction"
-                    : "Save transaction"}
-                </button>
-              </div>
-            </form>
-          </section>
+            </div>
+            <div className="confirm-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={cancelEdit}
+              >
+                Cancel
+              </button>
+              <button
+                className="primary-button"
+                disabled={isSaving || !canSaveTransaction}
+              >
+                {editingTransactionId
+                  ? "Update transaction"
+                  : "Save transaction"}
+              </button>
+            </div>
+          </form>
         </div>
       ) : null}
       {confirmTransaction ? (

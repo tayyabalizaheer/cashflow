@@ -1,12 +1,16 @@
 import { useEffect } from "react";
 
-export function useCloseActionMenu(isOpen: boolean, onClose: () => void) {
+export function useCloseActionMenu(
+  isOpen: boolean,
+  onClose: () => void,
+  containerSelector = ".row-menu-wrap",
+) {
   useEffect(() => {
     if (!isOpen) return;
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target;
-      if (target instanceof Element && target.closest(".row-menu-wrap")) {
+      if (target instanceof Element && target.closest(containerSelector)) {
         return;
       }
       onClose();
@@ -22,5 +26,5 @@ export function useCloseActionMenu(isOpen: boolean, onClose: () => void) {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [containerSelector, isOpen, onClose]);
 }

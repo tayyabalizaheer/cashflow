@@ -70,6 +70,13 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: var(--page-chrome-bg);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+html.modal-open,
+body.modal-open {
+  overflow: hidden;
 }
 
 button,
@@ -77,6 +84,14 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+input,
+textarea,
+[contenteditable="true"],
+.selectable-text {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 button,
@@ -1757,11 +1772,12 @@ th {
   place-items: center;
   padding: 24px;
   background: rgba(13, 23, 22, 0.64);
+  overscroll-behavior: contain;
 }
 
 .modal-panel {
   width: min(680px, 100%);
-  max-height: min(760px, 88vh);
+  max-height: min(760px, calc(100dvh - 48px));
   overflow: auto;
   display: grid;
   gap: 16px;
@@ -2335,6 +2351,8 @@ th {
 .modal-form-body {
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   display: grid;
   gap: 14px;
   padding: 16px 22px;

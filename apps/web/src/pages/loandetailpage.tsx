@@ -616,14 +616,13 @@ export function LoanDetailPage() {
         className="expense-card loan-balance-card"
         aria-label={`Balance ${balanceTotalText}`}
       >
-        <div className="loan-balance-grid">
-          Balance
-        </div>
+        <div className="loan-balance-grid">Balance</div>
         <div className="loan-balance-grid">
           {displayedBalances.map((balance) => (
             <div className="loan-balance-item" key={balance.currency}>
               <strong className={balanceClass(balance.balance)}>
-                {formatCurrencyValueOnly(balance.balance, balance.currency)} {balance.currency}
+                {formatCurrencyValueOnly(balance.balance, balance.currency)}{" "}
+                {balance.currency}
               </strong>
             </div>
           ))}
@@ -926,7 +925,7 @@ export function LoanDetailPage() {
           aria-label="Add loan transaction"
         >
           <form
-            className="modal-panel confirm-panel"
+            className="modal-panel form-modal confirm-panel"
             onSubmit={submitTransaction}
           >
             <div className="modal-header">
@@ -943,115 +942,117 @@ export function LoanDetailPage() {
                 <X size={16} />
               </button>
             </div>
-            <datalist id="loan-purpose-options">
-              {purposeOptions.map((purpose) => (
-                <option key={purpose} value={purpose} />
-              ))}
-            </datalist>
-            <TransactionKindPicker
-              name="loan-transaction-kind"
-              value={form.kind}
-              onChange={(kind) =>
-                setForm((current) => ({
-                  ...current,
-                  kind,
-                }))
-              }
-            />
-            <label>
-              Purpose
-              <input
-                list="loan-purpose-options"
-                value={form.purpose}
-                onChange={(event) =>
+            <div className="modal-form-body">
+              <datalist id="loan-purpose-options">
+                {purposeOptions.map((purpose) => (
+                  <option key={purpose} value={purpose} />
+                ))}
+              </datalist>
+              <TransactionKindPicker
+                name="loan-transaction-kind"
+                value={form.kind}
+                onChange={(kind) =>
                   setForm((current) => ({
                     ...current,
-                    purpose: event.target.value,
+                    kind,
                   }))
                 }
-                required
               />
-            </label>
-            <div className="compact-form">
               <label>
-                Currency
-                <select
-                  value={form.currency}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      currency: event.target.value,
-                    }))
-                  }
-                  required
-                >
-                  <option value="">Choose currency</option>
-                  {currencyOptions.map((currencyCode) => (
-                    <option key={currencyCode} value={currencyCode}>
-                      {currencyCode}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Amount
+                Purpose
                 <input
-                  type="number"
-                  min="0"
-                  step="0.0001"
-                  value={form.amount}
+                  list="loan-purpose-options"
+                  value={form.purpose}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
-                      amount: event.target.value,
+                      purpose: event.target.value,
                     }))
                   }
                   required
                 />
               </label>
-            </div>
-            <label>
-              Date
-              <input
-                type="date"
-                value={form.transactionDate}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    transactionDate: event.target.value,
-                  }))
-                }
-                required
-              />
-            </label>
-            <label>
-              Notes
-              <input
-                value={form.notes}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    notes: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label className="file-input">
-              <Camera size={16} />
-              Images
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(event) => updateAttachments(event, "add")}
-              />
-              <span>{form.attachments.length} selected</span>
-            </label>
-            {createTransaction.error ? (
-              <div className="form-error">
-                {createTransaction.error.message}
+              <div className="compact-form">
+                <label>
+                  Currency
+                  <select
+                    value={form.currency}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        currency: event.target.value,
+                      }))
+                    }
+                    required
+                  >
+                    <option value="">Choose currency</option>
+                    {currencyOptions.map((currencyCode) => (
+                      <option key={currencyCode} value={currencyCode}>
+                        {currencyCode}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Amount
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.0001"
+                    value={form.amount}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        amount: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </label>
               </div>
-            ) : null}
+              <label>
+                Date
+                <input
+                  type="date"
+                  value={form.transactionDate}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      transactionDate: event.target.value,
+                    }))
+                  }
+                  required
+                />
+              </label>
+              <label>
+                Notes
+                <input
+                  value={form.notes}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      notes: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label className="file-input">
+                <Camera size={16} />
+                Images
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(event) => updateAttachments(event, "add")}
+                />
+                <span>{form.attachments.length} selected</span>
+              </label>
+              {createTransaction.error ? (
+                <div className="form-error">
+                  {createTransaction.error.message}
+                </div>
+              ) : null}
+            </div>
             <div className="confirm-actions">
               <button
                 className="secondary-button"
@@ -1084,7 +1085,7 @@ export function LoanDetailPage() {
           aria-label="Edit loan transaction"
         >
           <form
-            className="modal-panel confirm-panel"
+            className="modal-panel form-modal confirm-panel"
             onSubmit={submitTransactionEdit}
           >
             <div className="modal-header">
@@ -1101,115 +1102,117 @@ export function LoanDetailPage() {
                 <X size={16} />
               </button>
             </div>
-            <datalist id="loan-purpose-edit-options">
-              {purposeOptions.map((purpose) => (
-                <option key={purpose} value={purpose} />
-              ))}
-            </datalist>
-            <TransactionKindPicker
-              name="loan-transaction-kind-edit"
-              value={editForm.kind}
-              onChange={(kind) =>
-                setEditForm((current) => ({
-                  ...current,
-                  kind,
-                }))
-              }
-            />
-            <label>
-              Purpose
-              <input
-                list="loan-purpose-edit-options"
-                value={editForm.purpose}
-                onChange={(event) =>
+            <div className="modal-form-body">
+              <datalist id="loan-purpose-edit-options">
+                {purposeOptions.map((purpose) => (
+                  <option key={purpose} value={purpose} />
+                ))}
+              </datalist>
+              <TransactionKindPicker
+                name="loan-transaction-kind-edit"
+                value={editForm.kind}
+                onChange={(kind) =>
                   setEditForm((current) => ({
                     ...current,
-                    purpose: event.target.value,
+                    kind,
                   }))
                 }
-                required
               />
-            </label>
-            <div className="compact-form">
               <label>
-                Currency
-                <select
-                  value={editForm.currency}
-                  onChange={(event) =>
-                    setEditForm((current) => ({
-                      ...current,
-                      currency: event.target.value,
-                    }))
-                  }
-                  required
-                >
-                  <option value="">Choose currency</option>
-                  {currencyOptions.map((currencyCode) => (
-                    <option key={currencyCode} value={currencyCode}>
-                      {currencyCode}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Amount
+                Purpose
                 <input
-                  type="number"
-                  min="0"
-                  step="0.0001"
-                  value={editForm.amount}
+                  list="loan-purpose-edit-options"
+                  value={editForm.purpose}
                   onChange={(event) =>
                     setEditForm((current) => ({
                       ...current,
-                      amount: event.target.value,
+                      purpose: event.target.value,
                     }))
                   }
                   required
                 />
               </label>
-            </div>
-            <label>
-              Date
-              <input
-                type="date"
-                value={editForm.transactionDate}
-                onChange={(event) =>
-                  setEditForm((current) => ({
-                    ...current,
-                    transactionDate: event.target.value,
-                  }))
-                }
-                required
-              />
-            </label>
-            <label>
-              Notes
-              <input
-                value={editForm.notes}
-                onChange={(event) =>
-                  setEditForm((current) => ({
-                    ...current,
-                    notes: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label className="file-input">
-              <Camera size={16} />
-              Images
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(event) => updateAttachments(event, "edit")}
-              />
-              <span>{editForm.attachments.length} selected</span>
-            </label>
-            {updateTransaction.error ? (
-              <div className="form-error">
-                {updateTransaction.error.message}
+              <div className="compact-form">
+                <label>
+                  Currency
+                  <select
+                    value={editForm.currency}
+                    onChange={(event) =>
+                      setEditForm((current) => ({
+                        ...current,
+                        currency: event.target.value,
+                      }))
+                    }
+                    required
+                  >
+                    <option value="">Choose currency</option>
+                    {currencyOptions.map((currencyCode) => (
+                      <option key={currencyCode} value={currencyCode}>
+                        {currencyCode}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Amount
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.0001"
+                    value={editForm.amount}
+                    onChange={(event) =>
+                      setEditForm((current) => ({
+                        ...current,
+                        amount: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </label>
               </div>
-            ) : null}
+              <label>
+                Date
+                <input
+                  type="date"
+                  value={editForm.transactionDate}
+                  onChange={(event) =>
+                    setEditForm((current) => ({
+                      ...current,
+                      transactionDate: event.target.value,
+                    }))
+                  }
+                  required
+                />
+              </label>
+              <label>
+                Notes
+                <input
+                  value={editForm.notes}
+                  onChange={(event) =>
+                    setEditForm((current) => ({
+                      ...current,
+                      notes: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label className="file-input">
+                <Camera size={16} />
+                Images
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(event) => updateAttachments(event, "edit")}
+                />
+                <span>{editForm.attachments.length} selected</span>
+              </label>
+              {updateTransaction.error ? (
+                <div className="form-error">
+                  {updateTransaction.error.message}
+                </div>
+              ) : null}
+            </div>
             <div className="confirm-actions">
               <button
                 className="secondary-button"

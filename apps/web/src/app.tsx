@@ -26,7 +26,13 @@ function refreshedQueryKeys(path: string) {
   const keys: unknown[][] = [["dashboard"]];
 
   if (pathOnly === "/expenses" || pathOnly.startsWith("/expenses/")) {
-    keys.push(["expenses"], ["expense-purposes"], ["categories"], ["assets"]);
+    keys.push(
+      ["expenses"],
+      ["expense-purposes"],
+      ["categories"],
+      ["assets"],
+      ["trash"],
+    );
     const expenseId = pathOnly.match(/^\/expenses\/([^/]+)(?:\/|$)/)?.[1];
     if (expenseId) keys.push(["expense", expenseId]);
   } else if (
@@ -34,16 +40,16 @@ function refreshedQueryKeys(path: string) {
     pathOnly.startsWith("/loans/") ||
     pathOnly.startsWith("/public/loans/")
   ) {
-    keys.push(["loans"], ["loan-purposes"]);
+    keys.push(["loans"], ["loan-purposes"], ["trash"]);
     const loanId = pathOnly.match(/^\/loans\/([^/]+)(?:\/|$)/)?.[1];
     if (loanId) keys.push(["loan", loanId]);
   } else if (
     pathOnly === "/investments" ||
     pathOnly.startsWith("/investments/")
   ) {
-    keys.push(["investments"]);
+    keys.push(["investments"], ["trash"]);
   } else if (pathOnly === "/assets" || pathOnly.startsWith("/assets/")) {
-    keys.push(["assets"]);
+    keys.push(["assets"], ["trash"]);
   } else if (pathOnly === "/categories") {
     keys.push(["categories"]);
   } else if (pathOnly === "/user-currencies") {
@@ -133,6 +139,31 @@ function LocalDataRefreshListener() {
   return null;
 }
 
+function ModalScrollLock() {
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+
+    function syncModalState() {
+      const hasModal = Boolean(document.querySelector(".modal-backdrop"));
+      html.classList.toggle("modal-open", hasModal);
+      body.classList.toggle("modal-open", hasModal);
+    }
+
+    const observer = new MutationObserver(syncModalState);
+    observer.observe(body, { childList: true, subtree: true });
+    syncModalState();
+
+    return () => {
+      observer.disconnect();
+      html.classList.remove("modal-open");
+      body.classList.remove("modal-open");
+    };
+  }, []);
+
+  return null;
+}
+
 function Protected() {
   const { user, localAvailable, loginRequired } = useAuth();
   useOnlineSync(Boolean(user));
@@ -145,6 +176,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <ModalScrollLock />
         <LocalDataRefreshListener />
         <AppUpdatePrompt />
         <Routes>
