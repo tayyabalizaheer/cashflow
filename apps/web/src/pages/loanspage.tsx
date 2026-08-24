@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { api, formatCurrency } from "../lib/api";
+import { updateLocalLoan } from "../lib/localsqlite";
 import { useCloseActionMenu } from "../lib/usecloseactionmenu";
 
 type LoanBalance = {
@@ -142,10 +143,25 @@ export function LoansPage() {
   }
 
   function togglePinnedLoan(loan: Loan) {
+    const pinnedAt = loan.pinnedAt ? null : new Date().toISOString();
+    const updatedLoan = {
+      ...loan,
+      pinnedAt,
+      updatedAt: new Date().toISOString(),
+    };
+
+    queryClient.setQueryData<{ data: Loan[] }>(["loans"], (current) => ({
+      data: (current?.data ?? []).map((item) =>
+        item.id === loan.id ? updatedLoan : item,
+      ),
+    }));
+    void updateLocalLoan(loan.id, { pinnedAt });
+    setActiveMenuId(null);
+
     updateLoan.mutate({
       id: loan.id,
       person: loan.person,
-      pinnedAt: loan.pinnedAt ? null : new Date().toISOString(),
+      pinnedAt,
     });
   }
 

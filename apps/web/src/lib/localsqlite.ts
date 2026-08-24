@@ -1431,6 +1431,23 @@ export async function storeServerResponseForPath(
   return false;
 }
 
+export async function updateLocalLoan(
+  loanId: string,
+  patch: Record<string, unknown>,
+) {
+  const db = await getLocalDatabase();
+  const loan = readModuleRecords(db, "loans").find(
+    (item) => item.id === loanId,
+  );
+  if (!loan) return null;
+
+  const updatedAt = new Date().toISOString();
+  const updatedLoan = { ...loan, ...patch, updatedAt };
+  writeLoanWithBalances(db, updatedLoan, updatedAt);
+  await persistDatabase(db);
+  return updatedLoan;
+}
+
 export async function localResponseForPath(path: string) {
   const db = await getLocalDatabase();
   const pathOnly = path.split("?")[0] ?? path;
