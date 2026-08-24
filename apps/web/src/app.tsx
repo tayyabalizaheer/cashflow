@@ -52,31 +52,63 @@ function refreshedQueryKeys(path: string) {
   return keys;
 }
 
+function allLocalQueryKeys() {
+  return [
+    ["dashboard"],
+    ["expenses"],
+    ["loans"],
+    ["investments"],
+    ["assets"],
+    ["categories"],
+    ["user-currencies"],
+    ["currencies"],
+    ["expense-purposes"],
+    ["loan-purposes"],
+    ["trash"],
+  ];
+}
+
 function LocalDataRefreshListener() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const onLocalDataRefreshed = (event: Event) => {
-      const path =
-        event instanceof CustomEvent && typeof event.detail?.path === "string"
-          ? event.detail.path
-          : "";
-      refreshedQueryKeys(path).forEach((queryKey) => {
+    function invalidateKeys(queryKeys: unknown[][]) {
+      queryKeys.forEach((queryKey) => {
         void queryClient.invalidateQueries({
           queryKey,
           refetchType: "active",
         });
       });
+    }
+
+    const onLocalDataRefreshed = (event: Event) => {
+      const path =
+        event instanceof CustomEvent && typeof event.detail?.path === "string"
+          ? event.detail.path
+          : "";
+      invalidateKeys(refreshedQueryKeys(path));
+    };
+
+    const onOfflineSyncFlushed = () => {
+      invalidateKeys(allLocalQueryKeys());
     };
 
     window.addEventListener(
       "cash-flow:local-data-refreshed",
       onLocalDataRefreshed,
     );
+    window.addEventListener(
+      "cash-flow:offline-sync-flushed",
+      onOfflineSyncFlushed,
+    );
     return () => {
       window.removeEventListener(
         "cash-flow:local-data-refreshed",
         onLocalDataRefreshed,
+      );
+      window.removeEventListener(
+        "cash-flow:offline-sync-flushed",
+        onOfflineSyncFlushed,
       );
     };
   }, [queryClient]);

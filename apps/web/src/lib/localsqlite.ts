@@ -569,6 +569,44 @@ function writeLoanWithBalances(
   );
 }
 
+function stableLoanActivity(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableLoanActivity);
+  if (!isRecord(value)) return value;
+
+  return Object.keys(value)
+    .filter((key) => !["pinnedAt", "updatedAt", "updated_at"].includes(key))
+    .sort()
+    .reduce<Record<string, unknown>>((activity, key) => {
+      activity[key] = stableLoanActivity(value[key]);
+      return activity;
+    }, {});
+}
+
+function sameLoanActivity(
+  left: Record<string, unknown>,
+  right: Record<string, unknown>,
+) {
+  return (
+    serialize(stableLoanActivity(left)) === serialize(stableLoanActivity(right))
+  );
+}
+
+function preserveLoanActivityTimestamp(
+  db: Database,
+  loan: Record<string, unknown>,
+) {
+  const loanId = String(loan.id ?? "");
+  const existingLoan = readModuleRecords(db, "loans").find(
+    (item) => item.id === loanId,
+  );
+  if (!existingLoan || !sameLoanActivity(existingLoan, loan)) return loan;
+  return {
+    ...loan,
+    updatedAt: existingLoan.updatedAt ?? loan.updatedAt,
+    updated_at: existingLoan.updated_at ?? loan.updated_at,
+  };
+}
+
 function applyLocalMutation(db: Database, mutation: OfflineMutation) {
   const now = mutation.createdAt;
   const loanDeleteMatch = mutation.path.match(/^\/loans\/([^/]+)$/);
@@ -829,16 +867,26 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       (item) => item.id === loanId,
     );
     if (loan) {
+      const nextPerson = String(payload.person ?? loan.person ?? "");
+      const hasPinnedAtUpdate = Object.prototype.hasOwnProperty.call(
+        payload,
+        "pinnedAt",
+      );
+      const pinOnlyUpdate =
+        hasPinnedAtUpdate &&
+        nextPerson === loan.person &&
+        Object.keys(payload).every((key) =>
+          ["id", "person", "pinnedAt"].includes(key),
+        );
+      const nextUpdatedAt = pinOnlyUpdate ? String(loan.updatedAt ?? now) : now;
       const updatedLoan = {
         ...loan,
-        person: String(payload.person ?? loan.person ?? ""),
+        person: nextPerson,
         purpose: String(payload.person ?? loan.purpose ?? ""),
-        ...(Object.prototype.hasOwnProperty.call(payload, "pinnedAt")
-          ? { pinnedAt: payload.pinnedAt ?? null }
-          : {}),
-        updatedAt: now,
+        ...(hasPinnedAtUpdate ? { pinnedAt: payload.pinnedAt ?? null } : {}),
+        updatedAt: nextUpdatedAt,
       };
-      writeLoanWithBalances(db, updatedLoan, now);
+      writeLoanWithBalances(db, updatedLoan, nextUpdatedAt);
       return updatedLoan;
     }
   }
@@ -1334,6 +1382,14 @@ export async function hasLocalData() {
   return recordCount > 0 || mutationCount > 0;
 }
 
+export async function hasPendingLocalMutations() {
+  const db = await getLocalDatabase();
+  const mutations = db.exec(
+    "SELECT COUNT(*) AS count FROM local_mutations WHERE status = 'PENDING'",
+  )[0];
+  return Number(mutations?.values[0]?.[0] ?? 0) > 0;
+}
+
 function responseData(responseBody: unknown) {
   return isRecord(responseBody) ? responseBody.data : undefined;
 }
@@ -1356,7 +1412,11 @@ function upsertServerRecords(
 ) {
   records.forEach((record) => {
     if (module === "loans") {
-      writeLoanWithBalances(db, record, syncedAt);
+      writeLoanWithBalances(
+        db,
+        preserveLoanActivityTimestamp(db, record),
+        syncedAt,
+      );
       return;
     }
     upsertLocalRecord(db, module, record, syncedAt);
@@ -1375,6 +1435,8 @@ export async function storeServerResponseForPath(
   path: string,
   responseBody: unknown,
 ) {
+  if (await hasPendingLocalMutations()) return false;
+
   const pathOnly = path.split("?")[0] ?? path;
   const syncedAt = new Date().toISOString();
   const listModuleMap: Record<string, string> = {
@@ -1415,7 +1477,11 @@ export async function storeServerResponseForPath(
   if (detailModule && record) {
     const db = await getLocalDatabase();
     if (detailModule === "loans") {
-      writeLoanWithBalances(db, record, syncedAt);
+      writeLoanWithBalances(
+        db,
+        preserveLoanActivityTimestamp(db, record),
+        syncedAt,
+      );
     } else {
       upsertLocalRecord(db, detailModule, record, syncedAt);
     }
@@ -1441,7 +1507,10 @@ export async function updateLocalLoan(
   );
   if (!loan) return null;
 
-  const updatedAt = new Date().toISOString();
+  const updatedAt =
+    typeof patch.updatedAt === "string"
+      ? patch.updatedAt
+      : String(loan.updatedAt ?? new Date().toISOString());
   const updatedLoan = { ...loan, ...patch, updatedAt };
   writeLoanWithBalances(db, updatedLoan, updatedAt);
   await persistDatabase(db);

@@ -2,6 +2,7 @@ import { queueOfflineMutation } from "./offlinequeue";
 import { appVersionHeader, registerApiAppVersion } from "./appversion";
 import { API_URL } from "./config";
 import {
+  hasPendingLocalMutations,
   localResponseForPath,
   storeServerResponseForPath,
 } from "./localsqlite";
@@ -154,6 +155,8 @@ function scheduleBackgroundRefresh(path: string, requestOptions: RequestInit) {
 }
 
 async function refreshServerData(path: string, requestOptions: RequestInit) {
+  if (await hasPendingLocalMutations()) return;
+
   const backgroundOptions = { ...requestOptions };
   delete backgroundOptions.signal;
   const body = await fetchServerJson(path, backgroundOptions);

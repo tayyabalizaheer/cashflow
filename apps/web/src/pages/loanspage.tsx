@@ -147,7 +147,6 @@ export function LoansPage() {
     const updatedLoan = {
       ...loan,
       pinnedAt,
-      updatedAt: new Date().toISOString(),
     };
 
     queryClient.setQueryData<{ data: Loan[] }>(["loans"], (current) => ({
