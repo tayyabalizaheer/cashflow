@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { api, setAccessToken } from "../lib/api";
+import { ApiClientError, api, setAccessToken } from "../lib/api";
 import { flushOfflineMutations } from "../lib/offlinequeue";
 import {
   bootstrapLocalData,
@@ -7,6 +7,7 @@ import {
   type BootstrapProgress,
   type BootstrapSummary,
 } from "../lib/localsqlite";
+import { sessionExpiredEvent, sessionRestoredEvent } from "../lib/sessiontoken";
 
 type User = {
   id: string;
@@ -19,6 +20,7 @@ type AuthContextValue = {
   token: string | null;
   localAvailable: boolean | null;
   localMode: boolean;
+  loginRequired: boolean;
   initializing: boolean;
   syncProgress: BootstrapProgress | null;
   restoreSummary: BootstrapSummary | null;
@@ -43,6 +45,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [loginRequired, setLoginRequired] = useState(false);
   const [localAvailable, setLocalAvailable] = useState<boolean | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [syncProgress, setSyncProgress] = useState<BootstrapProgress | null>(
@@ -55,14 +58,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   function receiveSession(nextUser: User, nextToken: string) {
     setUser(nextUser);
     setToken(nextToken);
+    setLoginRequired(false);
     setAccessToken(nextToken);
   }
 
-  function clearSession() {
+  function clearSession(options: { requireLogin?: boolean } = {}) {
     setUser(null);
     setToken(null);
     setAccessToken(null);
     setSyncProgress(null);
+    setRestoreSummary(null);
+    setLoginRequired(Boolean(options.requireLogin));
   }
 
   function prepareRestore(nextUser: User, nextToken: string) {
@@ -111,9 +117,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           receiveSession(response.data.user, response.data.accessToken);
           setLocalAvailable(await hasLocalData());
         }
-      } catch {
+      } catch (error) {
         if (active) {
-          clearSession();
+          clearSession({
+            requireLogin:
+              error instanceof ApiClientError &&
+              (error.code === "UNAUTHORIZED" || error.code === "FORBIDDEN"),
+          });
           setLocalAvailable(await hasLocalData());
         }
       } finally {
@@ -138,16 +148,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLocalAvailable(await hasLocalData());
       }
     }
+    async function handleSessionExpired() {
+      clearSession({ requireLogin: true });
+      setLocalAvailable(await hasLocalData());
+    }
 
-    window.addEventListener(
-      "cash-flow:session-restored",
-      handleSessionRestored,
-    );
+    window.addEventListener(sessionRestoredEvent, handleSessionRestored);
+    window.addEventListener(sessionExpiredEvent, handleSessionExpired);
     return () => {
-      window.removeEventListener(
-        "cash-flow:session-restored",
-        handleSessionRestored,
-      );
+      window.removeEventListener(sessionRestoredEvent, handleSessionRestored);
+      window.removeEventListener(sessionExpiredEvent, handleSessionExpired);
     };
   }, []);
 
@@ -156,7 +166,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       token,
       localAvailable,
-      localMode: !user && Boolean(localAvailable),
+      localMode: !loginRequired && !user && Boolean(localAvailable),
+      loginRequired,
       initializing,
       syncProgress,
       restoreSummary,
@@ -182,10 +193,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       async logout() {
         await api("/auth/logout", { method: "POST" }).catch(() => undefined);
-        clearSession();
+        clearSession({ requireLogin: true });
       },
     }),
-    [user, token, localAvailable, initializing, syncProgress, restoreSummary],
+    [
+      user,
+      token,
+      localAvailable,
+      loginRequired,
+      initializing,
+      syncProgress,
+      restoreSummary,
+    ],
   );
 
   return (

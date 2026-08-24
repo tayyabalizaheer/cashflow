@@ -1,6 +1,11 @@
 import { API_URL } from "./config";
 import { appVersionHeader, registerApiAppVersion } from "./appversion";
-import { getAccessToken, setAccessToken } from "./sessiontoken";
+import {
+  getAccessToken,
+  sessionExpiredEvent,
+  sessionRestoredEvent,
+  setAccessToken,
+} from "./sessiontoken";
 import {
   listLocalMutations,
   queueLocalMutation,
@@ -95,6 +100,9 @@ async function refreshAccessToken() {
     });
     if (!response.ok) {
       setAccessToken(null);
+      if (response.status === 401 || response.status === 403) {
+        window.dispatchEvent(new CustomEvent(sessionExpiredEvent));
+      }
       return false;
     }
     registerApiAppVersion(response.headers.get(appVersionHeader));
@@ -105,7 +113,7 @@ async function refreshAccessToken() {
     if (!nextToken) return false;
     setAccessToken(nextToken);
     window.dispatchEvent(
-      new CustomEvent("cash-flow:session-restored", {
+      new CustomEvent(sessionRestoredEvent, {
         detail: body.data ?? {},
       }),
     );

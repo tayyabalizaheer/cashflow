@@ -129,9 +129,9 @@ function LocalDataRefreshListener() {
 }
 
 function Protected() {
-  const { user, localAvailable } = useAuth();
+  const { user, localAvailable, loginRequired } = useAuth();
   useOnlineSync(Boolean(user));
-  if (!user && localAvailable === false)
+  if (!user && (loginRequired || localAvailable === false))
     return <Navigate to="/login" replace />;
   return <Layout />;
 }
