@@ -33,6 +33,7 @@ type ApiRequestOptions = RequestInit & {
 const backgroundRefreshTtlMs = 30_000;
 const recentBackgroundRefreshes = new Map<string, number>();
 const pendingBackgroundRefreshes = new Set<string>();
+let optimisticWriteRefreshBlockedUntil = 0;
 
 export async function api<T>(
   path: string,
@@ -59,6 +60,7 @@ export async function api<T>(
   }
 
   if (canQueue && method === "DELETE") {
+    optimisticWriteRefreshBlockedUntil = Date.now() + 10_000;
     await applySuccessfulMutationToLocal({
       path,
       method,
@@ -147,6 +149,7 @@ export async function api<T>(
 
   if (response.status === 204) {
     if (canQueue) {
+      optimisticWriteRefreshBlockedUntil = 0;
       await applySuccessfulMutationToLocal({
         path,
         method,
@@ -159,6 +162,7 @@ export async function api<T>(
 
   const body = await response.json();
   if (canQueue) {
+    optimisticWriteRefreshBlockedUntil = 0;
     const stored = await storeServerResponseForPath(path, body, {
       allowWithPendingMutations: true,
     });
@@ -206,6 +210,7 @@ function scheduleBackgroundRefresh(path: string, requestOptions: RequestInit) {
 
 async function refreshServerData(path: string, requestOptions: RequestInit) {
   if (await hasPendingLocalMutations()) return false;
+  if (Date.now() < optimisticWriteRefreshBlockedUntil) return false;
   if (!(await ensureAccessToken())) return false;
 
   const backgroundOptions = { ...requestOptions };

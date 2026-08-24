@@ -284,6 +284,11 @@ function deleteLocalRecord(db: Database, module: string, id: string) {
   db.run("DELETE FROM local_records WHERE module = ? AND id = ?", [module, id]);
 }
 
+function deleteCachedTrashRecord(db: Database, type: string, id: string) {
+  deleteLocalRecord(db, "trash", id);
+  deleteLocalRecord(db, "trash", `${type}:${id}`);
+}
+
 function localCurrencyCodes(db: Database) {
   const records = activeRecordsByModule(db);
   const codes = new Set<string>();
@@ -473,6 +478,28 @@ function trashTitleForRecord(type: string, record: Record<string, unknown>) {
 
 function localTrashItems(db: Database) {
   const types = ["loans", "expenses", "investments", "assets"];
+  const cachedTrashItems = readModuleRecords(db, "trash")
+    .map((record) => {
+      const type = String(record.type ?? "");
+      const id = String(record.recordId ?? record.id ?? "");
+      if (!type || !id) return null;
+      return {
+        id,
+        type,
+        label:
+          typeof record.label === "string"
+            ? record.label
+            : trashLabelForType(type),
+        title:
+          typeof record.title === "string"
+            ? record.title
+            : trashTitleForRecord(type, record),
+        archivedAt: String(record.archivedAt ?? record.deletedAt ?? ""),
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+      };
+    })
+    .filter(Boolean) as Array<Record<string, unknown>>;
   const moduleItems = types.flatMap((type) => {
     const module = trashModuleForType(type);
     if (!module) return [];
@@ -508,10 +535,17 @@ function localTrashItems(db: Database) {
         }));
     },
   );
-  return [...moduleItems, ...loanTransactionItems].sort(
+  const byKey = new Map<string, Record<string, unknown>>();
+  [...cachedTrashItems, ...moduleItems, ...loanTransactionItems].forEach(
+    (item) => {
+      byKey.set(`${item.type}:${item.id}`, item);
+    },
+  );
+
+  return [...byKey.values()].sort(
     (left, right) =>
-      new Date(right.archivedAt).getTime() -
-      new Date(left.archivedAt).getTime(),
+      new Date(String(right.archivedAt)).getTime() -
+      new Date(String(left.archivedAt)).getTime(),
   );
 }
 
@@ -620,7 +654,17 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       writeLoanWithBalances(db, archivedLoan, now);
       return archivedLoan;
     }
-    return { archivedAt: now };
+    const archivedLoan = {
+      id: loanId,
+      person: "Loan",
+      balances: [],
+      transactions: [],
+      archivedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    writeLoanWithBalances(db, archivedLoan, now);
+    return archivedLoan;
   }
 
   const expenseDeleteMatch = mutation.path.match(/^\/expenses\/([^/]+)$/);
@@ -634,7 +678,15 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       upsertLocalRecord(db, "expenses", archivedExpense, now);
       return archivedExpense;
     }
-    return { archivedAt: now };
+    const archivedExpense = {
+      id: expenseId,
+      name: "Expense",
+      archivedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    upsertLocalRecord(db, "expenses", archivedExpense, now);
+    return archivedExpense;
   }
 
   const assetDeleteMatch = mutation.path.match(/^\/assets\/([^/]+)$/);
@@ -660,7 +712,15 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       upsertLocalRecord(db, "assets", archivedAsset, now);
       return archivedAsset;
     }
-    return { archivedAt: now };
+    const archivedAsset = {
+      id: assetId,
+      name: "Asset",
+      archivedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    upsertLocalRecord(db, "assets", archivedAsset, now);
+    return archivedAsset;
   }
 
   const investmentDeleteMatch = mutation.path.match(/^\/investments\/([^/]+)$/);
@@ -678,7 +738,15 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       upsertLocalRecord(db, "investments", archivedInvestment, now);
       return archivedInvestment;
     }
-    return { archivedAt: now };
+    const archivedInvestment = {
+      id: investmentId,
+      name: "Investment",
+      archivedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    upsertLocalRecord(db, "investments", archivedInvestment, now);
+    return archivedInvestment;
   }
 
   const trashRestoreMatch = mutation.path.match(
@@ -720,6 +788,7 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
     if (module && record) {
       const restoredRecord = { ...record, archivedAt: null, updatedAt: now };
       upsertLocalRecord(db, module, restoredRecord, now);
+      if (type && id) deleteCachedTrashRecord(db, type, id);
       return restoredRecord;
     }
   }
@@ -761,6 +830,7 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
     }
     const module = trashModuleForType(type ?? "");
     if (module && id) deleteLocalRecord(db, module, id);
+    if (type && id) deleteCachedTrashRecord(db, type, id);
     return { deleted: true };
   }
 
@@ -1489,6 +1559,7 @@ export async function storeServerResponseForPath(
     "/categories": "categories",
     "/user-currencies": "user-currencies",
     "/currencies": "currencies",
+    "/trash": "trash",
   };
   const listModule = listModuleMap[pathOnly];
   const records = responseRecords(responseBody);
@@ -1497,7 +1568,23 @@ export async function storeServerResponseForPath(
     const db = await getLocalDatabase();
     db.run("BEGIN TRANSACTION");
     try {
-      upsertServerRecords(db, listModule, records, syncedAt);
+      if (listModule === "trash") {
+        replaceModule(
+          db,
+          listModule,
+          records.map((record) => ({
+            ...record,
+            recordId: record.recordId ?? record.id,
+            id:
+              typeof record.type === "string" && record.id
+                ? `${record.type}:${String(record.id)}`
+                : String(record.id ?? crypto.randomUUID()),
+          })),
+          syncedAt,
+        );
+      } else {
+        upsertServerRecords(db, listModule, records, syncedAt);
+      }
       db.run("COMMIT");
     } catch (error) {
       db.run("ROLLBACK");
@@ -1665,7 +1752,7 @@ export async function localResponseForPath(path: string) {
     );
     if (loan) return { data: loan };
   }
-  if (path === "/trash") return { data: localTrashItems(db) };
+  if (pathOnly === "/trash") return { data: localTrashItems(db) };
   const expenseMatch = pathOnly.match(/^\/expenses\/([^/]+)$/);
   if (expenseMatch) {
     const expense = readActiveModuleRecords(db, "expenses").find(
