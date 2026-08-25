@@ -1568,6 +1568,12 @@ export async function resetLocalDatabase() {
   await persistDatabase(db);
 }
 
+export async function exportLocalDatabaseBackup() {
+  const db = await getLocalDatabase();
+  await persistDatabase(db);
+  return db.export();
+}
+
 export async function hasLocalData() {
   const db = await getLocalDatabase();
   const records = db.exec("SELECT COUNT(*) AS count FROM local_records")[0];

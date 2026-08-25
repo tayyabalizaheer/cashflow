@@ -3,6 +3,7 @@ import {
   ArrowRight,
   BadgeInfo,
   Coins,
+  Download,
   LogOut,
   Monitor,
   Moon,
@@ -19,6 +20,27 @@ import {
   clearAppCacheAndRestart,
   currentAppBuildNumber,
 } from "../lib/appversion";
+import { exportLocalDatabaseBackup } from "../lib/localsqlite";
+
+type BackupProgress = {
+  percent: number;
+  message: string;
+};
+
+type SaveFilePickerWindow = Window & {
+  showSaveFilePicker?: (options: {
+    suggestedName?: string;
+    types?: Array<{
+      description: string;
+      accept: Record<string, string[]>;
+    }>;
+  }) => Promise<{
+    createWritable: () => Promise<{
+      write: (data: Blob) => Promise<void> | void;
+      close: () => Promise<void> | void;
+    }>;
+  }>;
+};
 
 const settingsTiles = [
   {
@@ -57,10 +79,89 @@ export function SettingsPage() {
   const { logout } = useAuth();
   const { themePreference, setThemePreference } = useTheme();
   const [restarting, setRestarting] = useState(false);
+  const [backupProgress, setBackupProgress] = useState<BackupProgress | null>(
+    null,
+  );
+  const [backupError, setBackupError] = useState("");
+  const [backupDone, setBackupDone] = useState("");
 
   async function updateAndRestart() {
     setRestarting(true);
     await clearAppCacheAndRestart();
+  }
+
+  function backupFileName() {
+    const stamp = new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")
+      .replace("T", "_")
+      .slice(0, 19);
+    return `cash-flow-local-${stamp}.bak`;
+  }
+
+  function waitForPaint() {
+    return new Promise((resolve) => window.setTimeout(resolve, 120));
+  }
+
+  async function saveBackupFile(fileName: string, bytes: Uint8Array) {
+    const backupBuffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(backupBuffer).set(bytes);
+    const blob = new Blob([backupBuffer], {
+      type: "application/x-sqlite3",
+    });
+    const pickerWindow = window as SaveFilePickerWindow;
+
+    if (pickerWindow.showSaveFilePicker) {
+      const handle = await pickerWindow.showSaveFilePicker({
+        suggestedName: fileName,
+        types: [
+          {
+            description: "Cash Flow backup",
+            accept: { "application/octet-stream": [".bak"] },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.rel = "noopener";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async function takeBackup() {
+    setBackupError("");
+    setBackupDone("");
+    const fileName = backupFileName();
+
+    try {
+      setBackupProgress({ percent: 15, message: "Reading local database" });
+      await waitForPaint();
+      const bytes = await exportLocalDatabaseBackup();
+      setBackupProgress({ percent: 65, message: "Preparing backup file" });
+      await waitForPaint();
+      await saveBackupFile(fileName, bytes);
+      setBackupProgress({ percent: 100, message: "Backup saved" });
+      setBackupDone(fileName);
+      window.setTimeout(() => setBackupProgress(null), 1200);
+    } catch (error) {
+      setBackupProgress(null);
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+      setBackupError(
+        error instanceof Error ? error.message : "Could not take backup.",
+      );
+    }
   }
 
   return (
@@ -115,6 +216,42 @@ export function SettingsPage() {
             <RefreshCw size={16} />
             {restarting ? "Restarting" : "Update and restart"}
           </button>
+        </section>
+        <section className="settings-tile backup-settings-tile">
+          <span className="settings-tile-icon">
+            <Download size={22} />
+          </span>
+          <span>
+            <strong>Backup and restore</strong>
+            <small>
+              Save a local .bak copy of this device database. No server call is
+              made.
+            </small>
+          </span>
+          <button
+            className="primary-button compact"
+            type="button"
+            onClick={takeBackup}
+            disabled={Boolean(backupProgress)}
+          >
+            <Download size={16} />
+            {backupProgress ? "Backing up" : "Take backup"}
+          </button>
+          {backupProgress ? (
+            <div className="backup-progress">
+              <div>
+                <span>{backupProgress.message}</span>
+                <strong>{backupProgress.percent}%</strong>
+              </div>
+              <progress value={backupProgress.percent} max={100} />
+            </div>
+          ) : null}
+          {backupDone ? (
+            <small className="backup-status">Saved {backupDone}</small>
+          ) : null}
+          {backupError ? (
+            <small className="backup-status error">{backupError}</small>
+          ) : null}
         </section>
         {settingsTiles.map((tile) => (
           <NavLink className="settings-tile" key={tile.to} to={tile.to}>

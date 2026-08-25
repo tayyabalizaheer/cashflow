@@ -743,12 +743,70 @@ th {
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
-.app-version-tile .primary-button {
+.backup-settings-tile {
+  grid-column: 1 / -1;
+  min-height: 116px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.app-version-tile .primary-button,
+.backup-settings-tile .primary-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   white-space: nowrap;
+}
+
+.backup-progress,
+.backup-status {
+  grid-column: 2 / -1;
+}
+
+.backup-progress {
+  display: grid;
+  gap: 8px;
+}
+
+.backup-progress div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.backup-progress progress {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--mist);
+}
+
+.backup-progress progress::-webkit-progress-bar {
+  background: var(--mist);
+}
+
+.backup-progress progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--teal);
+}
+
+.backup-progress progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--teal);
+}
+
+.backup-status {
+  color: var(--muted);
+}
+
+.backup-status.error {
+  color: var(--berry);
 }
 
 .theme-option-group {
@@ -1797,7 +1855,7 @@ th {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 80;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -2413,6 +2471,15 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
     padding: 0 10px calc(98px + env(safe-area-inset-bottom));
   }
 
+  .modal-backdrop {
+    padding: 14px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .modal-panel {
+    max-height: calc(100dvh - 28px - env(safe-area-inset-bottom));
+  }
+
   .page {
     gap: 12px;
   }
@@ -2637,8 +2704,19 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .app-version-tile .primary-button {
+  .backup-settings-tile {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .app-version-tile .primary-button,
+  .backup-settings-tile .primary-button,
+  .backup-progress,
+  .backup-status {
     grid-column: 1 / -1;
+  }
+
+  .app-version-tile .primary-button,
+  .backup-settings-tile .primary-button {
     width: 100%;
   }
 
