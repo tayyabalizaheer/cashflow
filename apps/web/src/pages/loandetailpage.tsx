@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { api, formatCurrency } from "../lib/api";
 import { useAuth } from "../components/authprovider";
+import { formatAppDate } from "../lib/dateformat";
 import { useCloseActionMenu } from "../lib/usecloseactionmenu";
 
 type UserCurrency = {
@@ -708,7 +709,7 @@ export function LoanDetailPage() {
                   </div>
                 )}
                 <time>
-                  {new Date(transaction.transactionDate).toLocaleDateString()}
+                  {formatAppDate(transaction.transactionDate)}
                 </time>
               </div>
             </div>

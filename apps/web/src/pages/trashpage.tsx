@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ArrowLeft, RotateCcw, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
+import { formatAppDate } from "../lib/dateformat";
 
 type TrashItem = {
   id: string;
@@ -11,10 +12,6 @@ type TrashItem = {
   title: string;
   archivedAt: string;
 };
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString();
-}
 
 function sameTrashItem(left: TrashItem, right: TrashItem) {
   return left.id === right.id && left.type === right.type;
@@ -110,7 +107,7 @@ export function TrashPage() {
             <div>
               <span className="trash-label">{item.label}</span>
               <strong>{item.title}</strong>
-              <small>Deleted {formatDate(item.archivedAt)}</small>
+              <small>Deleted {formatAppDate(item.archivedAt)}</small>
             </div>
             <div className="transaction-actions">
               <button

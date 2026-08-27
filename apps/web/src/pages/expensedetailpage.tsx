@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { api, formatCurrency } from "../lib/api";
+import { formatAppDate } from "../lib/dateformat";
 import { useCloseActionMenu } from "../lib/usecloseactionmenu";
 
 type Category = {
@@ -617,7 +618,7 @@ export function ExpenseDetailPage() {
               <div className="transaction-main-info">
                 <strong>{transaction.purpose}</strong>
                 <time>
-                  {new Date(transaction.transactionDate).toLocaleDateString()}
+                  {formatAppDate(transaction.transactionDate)}
                 </time>
               </div>
               <div className="transaction-currency-strip">
@@ -994,9 +995,7 @@ export function ExpenseDetailPage() {
               <div>
                 <dt>Date</dt>
                 <dd>
-                  {new Date(
-                    detailTransaction.transactionDate,
-                  ).toLocaleDateString()}
+                  {formatAppDate(detailTransaction.transactionDate)}
                 </dd>
               </div>
               <div>

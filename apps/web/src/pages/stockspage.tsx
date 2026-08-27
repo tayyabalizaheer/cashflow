@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "../lib/api";
+import { formatAppDate, formatAppDateTime } from "../lib/dateformat";
 
 type StockTrend = {
   direction: "up" | "down" | "flat" | null;
@@ -109,23 +110,11 @@ const trendBasisLabels: Record<NonNullable<StockTrend["basis"]>, string> = {
 };
 
 function formatDate(value: string | number | null | undefined) {
-  if (!value) return "-";
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
+  return formatAppDate(value);
 }
 
 function formatDateTime(value: string | number | null | undefined) {
-  if (!value) return "-";
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
+  return formatAppDateTime(value);
 }
 
 function formatValue(value: string | number | boolean | null | undefined) {

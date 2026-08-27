@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { RecordTable } from "../components/recordtable";
 import { api, formatCurrency } from "../lib/api";
+import { formatAppDate } from "../lib/dateformat";
 import { useCloseActionMenu } from "../lib/usecloseactionmenu";
 
 type Currency = {
@@ -211,9 +212,7 @@ const config = {
         label: "Date",
         render: (row: RecordItem) =>
           row.valuationDate || row.acquisitionDate
-            ? new Date(
-                row.valuationDate ?? row.acquisitionDate ?? "",
-              ).toLocaleDateString()
+            ? formatAppDate(row.valuationDate ?? row.acquisitionDate)
             : "-",
       },
       {
@@ -377,7 +376,7 @@ function assetGroupCurrencyTotals(assets: AssetDisplayItem[]) {
 
 function assetDate(asset: RecordItem) {
   const date = asset.valuationDate ?? asset.acquisitionDate;
-  return date ? new Date(date).toLocaleDateString() : "";
+  return date ? formatAppDate(date, "") : "";
 }
 
 function investmentTitle(investment: RecordItem) {
@@ -390,11 +389,11 @@ function investmentValue(investment: RecordItem) {
 
 function investmentDate(investment: RecordItem) {
   const date = investment.latestValuationDate ?? investment.purchaseDate;
-  return date ? new Date(date).toLocaleDateString() : "";
+  return date ? formatAppDate(date, "") : "";
 }
 
 function detailDate(value?: string | null) {
-  return value ? new Date(value).toLocaleDateString() : "-";
+  return formatAppDate(value);
 }
 
 function AssetList({
