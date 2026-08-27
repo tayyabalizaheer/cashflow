@@ -1378,13 +1378,11 @@ const investmentSchema = z.object({
   zakatPercentage: nonNegativeDecimal.default(100),
 });
 
-function investmentRecordTime(investment: {
-  latestValuationDate?: Date | null;
+function investmentPurchaseTime(investment: {
   purchaseDate?: Date | null;
   createdAt?: Date | null;
 }) {
   return Math.max(
-    investment.latestValuationDate?.getTime() ?? 0,
     investment.purchaseDate?.getTime() ?? 0,
     investment.createdAt?.getTime() ?? 0,
   );
@@ -1412,14 +1410,14 @@ financeRouter.get(
     const [allItems, total] = await Promise.all([
       prisma.investment.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ purchaseDate: "desc" }, { createdAt: "desc" }],
       }),
       prisma.investment.count({ where }),
     ]);
     const items = allItems
       .sort(
         (left, right) =>
-          investmentRecordTime(right) - investmentRecordTime(left),
+          investmentPurchaseTime(right) - investmentPurchaseTime(left),
       )
       .slice(skip, skip + take);
     return res.json({ data: items, meta: { page, pageSize, total } });

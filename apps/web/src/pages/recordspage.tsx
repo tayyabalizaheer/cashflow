@@ -265,6 +265,17 @@ function compareRecordsByLatestDesc(left: RecordItem, right: RecordItem) {
   return latestRecordTime(right) - latestRecordTime(left);
 }
 
+function investmentPurchaseTime(record: RecordItem) {
+  return Math.max(timeValue(record.purchaseDate), timeValue(record.createdAt));
+}
+
+function compareInvestmentsByPurchaseDateDesc(
+  left: RecordItem,
+  right: RecordItem,
+) {
+  return investmentPurchaseTime(right) - investmentPurchaseTime(left);
+}
+
 function expenseCurrencyCodes(expense: RecordItem) {
   if (expense.currencies?.length)
     return expense.currencies.map((line) => line.currencyCode);
@@ -518,7 +529,7 @@ function InvestmentList({
                 </strong>
               </div>
               <div className="asset-value-cell">
-                <span>Value</span>
+                <span>Initial value</span>
                 <strong>
                   {formatAmountWithCode(
                     investmentValue(investment),
@@ -877,7 +888,11 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     },
   });
 
-  const rows = [...(data?.data ?? [])].sort(compareRecordsByLatestDesc);
+  const rows = [...(data?.data ?? [])].sort(
+    module === "investments"
+      ? compareInvestmentsByPurchaseDateDesc
+      : compareRecordsByLatestDesc,
+  );
   const categories = categoriesData?.data ?? [];
   const userCurrencies = userCurrenciesData?.data ?? [];
   const assetExpenses = assetExpenseData?.data ?? [];
@@ -1829,7 +1844,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                 </div>
                 <div className="compact-form">
                   <label>
-                    Current value
+                    Initial value
                     <input
                       type="number"
                       min="0"
@@ -1970,7 +1985,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                   </dd>
                 </div>
                 <div>
-                  <dt>Current value</dt>
+                  <dt>Initial value</dt>
                   <dd>
                     {formatAmountWithCode(
                       investmentValue(investmentDetail),
