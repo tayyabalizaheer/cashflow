@@ -1388,6 +1388,110 @@ function investmentPurchaseTime(investment: {
   );
 }
 
+function numericInvestmentValue(value: unknown) {
+  if (value == null) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function calculatedInvestmentCurrentValue(
+  investment: Record<string, any>,
+  latestStock?: {
+    validityDate: Date;
+    navPrice: unknown;
+    offerPrice: unknown;
+  },
+) {
+  const quantity = numericInvestmentValue(investment.quantity);
+  const stockNav = numericInvestmentValue(latestStock?.navPrice);
+  const stockOffer = numericInvestmentValue(latestStock?.offerPrice);
+  const manualNav = numericInvestmentValue(investment.nav);
+  const initialValue = numericInvestmentValue(investment.currentValue);
+
+  if (quantity != null && investment.stockFundName && stockNav != null) {
+    return {
+      computedCurrentValue: (quantity * stockNav).toFixed(4),
+      currentUnitPrice: stockNav.toFixed(4),
+      currentPriceSource: "NAV",
+      currentPriceDate: latestStock?.validityDate ?? null,
+    };
+  }
+
+  if (quantity != null && investment.stockFundName && stockOffer != null) {
+    return {
+      computedCurrentValue: (quantity * stockOffer).toFixed(4),
+      currentUnitPrice: stockOffer.toFixed(4),
+      currentPriceSource: "Offer",
+      currentPriceDate: latestStock?.validityDate ?? null,
+    };
+  }
+
+  if (quantity != null && manualNav != null) {
+    return {
+      computedCurrentValue: (quantity * manualNav).toFixed(4),
+      currentUnitPrice: manualNav.toFixed(4),
+      currentPriceSource: "Manual NAV",
+      currentPriceDate:
+        investment.latestValuationDate ?? investment.purchaseDate ?? null,
+    };
+  }
+
+  return {
+    computedCurrentValue: initialValue != null ? initialValue.toFixed(4) : null,
+    currentUnitPrice: null,
+    currentPriceSource: initialValue != null ? "Initial value" : null,
+    currentPriceDate:
+      investment.latestValuationDate ?? investment.purchaseDate ?? null,
+  };
+}
+
+async function investmentsWithCurrentValues(items: Array<Record<string, any>>) {
+  const stockNames = [
+    ...new Set(
+      items
+        .map((item) => item.stockFundName)
+        .filter(
+          (value): value is string =>
+            typeof value === "string" && value.length > 0,
+        ),
+    ),
+  ];
+
+  if (stockNames.length === 0) {
+    return items.map((item) => ({
+      ...item,
+      ...calculatedInvestmentCurrentValue(item),
+    }));
+  }
+
+  const stockRows = await prisma.stock.findMany({
+    where: { fundName: { in: stockNames } },
+    select: {
+      fundName: true,
+      validityDate: true,
+      navPrice: true,
+      offerPrice: true,
+    },
+    orderBy: [{ fundName: "asc" }, { validityDate: "desc" }],
+  });
+  const latestStockByName = new Map<string, (typeof stockRows)[number]>();
+  stockRows.forEach((stock) => {
+    if (!latestStockByName.has(stock.fundName)) {
+      latestStockByName.set(stock.fundName, stock);
+    }
+  });
+
+  return items.map((item) => ({
+    ...item,
+    ...calculatedInvestmentCurrentValue(
+      item,
+      item.stockFundName
+        ? latestStockByName.get(item.stockFundName)
+        : undefined,
+    ),
+  }));
+}
+
 financeRouter.get(
   "/investments",
   asyncHandler(async (req, res) => {
@@ -1420,7 +1524,10 @@ financeRouter.get(
           investmentPurchaseTime(right) - investmentPurchaseTime(left),
       )
       .slice(skip, skip + take);
-    return res.json({ data: items, meta: { page, pageSize, total } });
+    return res.json({
+      data: await investmentsWithCurrentValues(items),
+      meta: { page, pageSize, total },
+    });
   }),
 );
 

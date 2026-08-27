@@ -73,6 +73,10 @@ type RecordItem = {
   quantity?: string | null;
   nav?: string | null;
   currentValue?: string | null;
+  computedCurrentValue?: string | null;
+  currentUnitPrice?: string | null;
+  currentPriceSource?: string | null;
+  currentPriceDate?: string | null;
   purchaseDate?: string | null;
   latestValuationDate?: string | null;
   notes?: string | null;
@@ -394,8 +398,12 @@ function investmentTitle(investment: RecordItem) {
   return investment.name ?? investment.stockFundName ?? "Investment";
 }
 
-function investmentValue(investment: RecordItem) {
+function investmentInitialValue(investment: RecordItem) {
   return investment.currentValue || investment.amountInvested || "0";
+}
+
+function investmentCurrentValue(investment: RecordItem) {
+  return investment.computedCurrentValue || investmentInitialValue(investment);
 }
 
 function investmentDate(investment: RecordItem) {
@@ -520,7 +528,7 @@ function InvestmentList({
             </div>
             <div className="investment-value-grid">
               <div className="asset-value-cell">
-                <span>Cost</span>
+                <span>Total cost</span>
                 <strong>
                   {formatAmountWithCode(
                     investment.amountInvested ?? "0",
@@ -532,17 +540,28 @@ function InvestmentList({
                 <span>Initial value</span>
                 <strong>
                   {formatAmountWithCode(
-                    investmentValue(investment),
+                    investmentInitialValue(investment),
                     investment.currency,
                   )}
                 </strong>
               </div>
-              {investment.quantity ? (
-                <div className="asset-value-cell">
-                  <span>Quantity</span>
-                  <strong>{formatNumber(investment.quantity)}</strong>
-                </div>
-              ) : null}
+              <div className="asset-value-cell">
+                <span>No. of units</span>
+                <strong>
+                  {investment.quantity
+                    ? formatNumber(investment.quantity)
+                    : "-"}
+                </strong>
+              </div>
+              <div className="asset-value-cell">
+                <span>Current value</span>
+                <strong>
+                  {formatAmountWithCode(
+                    investmentCurrentValue(investment),
+                    investment.currency,
+                  )}
+                </strong>
+              </div>
             </div>
           </div>
           <div className="row-menu-wrap">
@@ -1976,7 +1995,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                   <dd>{investmentDetail.stockFundName ?? "Manual entry"}</dd>
                 </div>
                 <div>
-                  <dt>Cost</dt>
+                  <dt>Total cost</dt>
                   <dd>
                     {formatAmountWithCode(
                       investmentDetail.amountInvested ?? "0",
@@ -1988,16 +2007,33 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                   <dt>Initial value</dt>
                   <dd>
                     {formatAmountWithCode(
-                      investmentValue(investmentDetail),
+                      investmentInitialValue(investmentDetail),
                       investmentDetail.currency,
                     )}
                   </dd>
                 </div>
                 <div>
-                  <dt>Quantity</dt>
+                  <dt>No. of units</dt>
                   <dd>
                     {investmentDetail.quantity
                       ? formatNumber(investmentDetail.quantity)
+                      : "-"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Current value</dt>
+                  <dd>
+                    {formatAmountWithCode(
+                      investmentCurrentValue(investmentDetail),
+                      investmentDetail.currency,
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Current price</dt>
+                  <dd>
+                    {investmentDetail.currentUnitPrice
+                      ? `${formatNumber(investmentDetail.currentUnitPrice)} (${investmentDetail.currentPriceSource ?? "Price"})`
                       : "-"}
                   </dd>
                 </div>
