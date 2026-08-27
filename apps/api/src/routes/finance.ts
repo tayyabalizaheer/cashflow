@@ -1378,6 +1378,18 @@ const investmentSchema = z.object({
   zakatPercentage: nonNegativeDecimal.default(100),
 });
 
+function investmentRecordTime(investment: {
+  latestValuationDate?: Date | null;
+  purchaseDate?: Date | null;
+  createdAt?: Date | null;
+}) {
+  return Math.max(
+    investment.latestValuationDate?.getTime() ?? 0,
+    investment.purchaseDate?.getTime() ?? 0,
+    investment.createdAt?.getTime() ?? 0,
+  );
+}
+
 financeRouter.get(
   "/investments",
   asyncHandler(async (req, res) => {
@@ -1397,15 +1409,19 @@ financeRouter.get(
         ? { name: { contains: search, mode: "insensitive" as const } }
         : {}),
     };
-    const [items, total] = await Promise.all([
+    const [allItems, total] = await Promise.all([
       prisma.investment.findMany({
         where,
-        skip,
-        take,
-        orderBy: { updatedAt: "desc" },
+        orderBy: { createdAt: "desc" },
       }),
       prisma.investment.count({ where }),
     ]);
+    const items = allItems
+      .sort(
+        (left, right) =>
+          investmentRecordTime(right) - investmentRecordTime(left),
+      )
+      .slice(skip, skip + take);
     return res.json({ data: items, meta: { page, pageSize, total } });
   }),
 );
@@ -1463,6 +1479,8 @@ const stockAverageFields = [
   "sinceInceptionReturn",
 ] as const;
 
+const stockTrendFields = ["repurchasePrice", "navPrice", "offerPrice"] as const;
+
 function averageStockValue(
   rows: Array<Record<string, any>>,
   key: (typeof stockAverageFields)[number],
@@ -1505,6 +1523,96 @@ function averageStockRows(rows: Array<Record<string, any>>) {
       recordCount: group.length,
     };
   });
+}
+
+function stockTrendFor(
+  item: Record<string, any>,
+  historicalRows: Array<Record<string, any>>,
+) {
+  const previous = historicalRows.find(
+    (row) =>
+      row.fundName === item.fundName &&
+      new Date(row.validityDate).getTime() <
+        new Date(item.validityDate).getTime(),
+  );
+
+  if (!previous) {
+    return {
+      direction: null,
+      basis: null,
+      latestValue: null,
+      previousValue: null,
+      previousValidityDate: null,
+      change: null,
+      changePercent: null,
+    };
+  }
+
+  for (const field of stockTrendFields) {
+    const latestValue = Number(item[field]);
+    const previousValue = Number(previous[field]);
+
+    if (!Number.isFinite(latestValue) || !Number.isFinite(previousValue)) {
+      continue;
+    }
+
+    const change = latestValue - previousValue;
+    return {
+      direction: change > 0 ? "up" : change < 0 ? "down" : "flat",
+      basis: field,
+      latestValue: latestValue.toFixed(4),
+      previousValue: previousValue.toFixed(4),
+      previousValidityDate: previous.validityDate,
+      change: change.toFixed(4),
+      changePercent:
+        previousValue === 0
+          ? null
+          : ((change / previousValue) * 100).toFixed(2),
+    };
+  }
+
+  return {
+    direction: null,
+    basis: null,
+    latestValue: null,
+    previousValue: null,
+    previousValidityDate: previous.validityDate,
+    change: null,
+    changePercent: null,
+  };
+}
+
+async function stockRowsWithUserState(
+  rows: Array<Record<string, any>>,
+  userId: string,
+) {
+  const fundNames = [...new Set(rows.map((row) => row.fundName))];
+  if (fundNames.length === 0) return rows;
+
+  const [favorites, trendRows] = await Promise.all([
+    prisma.stockFavorite.findMany({
+      where: { userId, fundName: { in: fundNames } },
+      select: { fundName: true },
+    }),
+    prisma.stock.findMany({
+      where: { fundName: { in: fundNames } },
+      select: {
+        fundName: true,
+        validityDate: true,
+        repurchasePrice: true,
+        navPrice: true,
+        offerPrice: true,
+      },
+      orderBy: [{ fundName: "asc" }, { validityDate: "desc" }],
+    }),
+  ]);
+  const favoriteNames = new Set(favorites.map((favorite) => favorite.fundName));
+
+  return rows.map((row) => ({
+    ...row,
+    isFavorite: favoriteNames.has(row.fundName),
+    trend: stockTrendFor(row, trendRows),
+  }));
 }
 
 financeRouter.get(
@@ -1552,7 +1660,10 @@ financeRouter.get(
       });
       const items = averageStockRows(rows);
       return res.json({
-        data: items.slice(skip, skip + take),
+        data: await stockRowsWithUserState(
+          items.slice(skip, skip + take),
+          req.user!.id,
+        ),
         meta: {
           page,
           pageSize,
@@ -1573,13 +1684,52 @@ financeRouter.get(
       prisma.stock.count({ where }),
     ]);
     return res.json({
-      data: items,
+      data: await stockRowsWithUserState(items, req.user!.id),
       meta: {
         page,
         pageSize,
         total,
         latestValidityDate: latestStock?.validityDate ?? null,
       },
+    });
+  }),
+);
+
+const stockFavoriteSchema = z.object({
+  fundName: z.string().trim().min(1).max(191),
+  favorite: z.boolean(),
+});
+
+financeRouter.put(
+  "/stocks/favorites",
+  asyncHandler(async (req, res) => {
+    const input = stockFavoriteSchema.parse(req.body);
+    const stock = await prisma.stock.findFirst({
+      where: { fundName: input.fundName },
+      select: { fundName: true },
+    });
+
+    if (!stock) throw notFound("Stock not found");
+
+    if (input.favorite) {
+      await prisma.stockFavorite.upsert({
+        where: {
+          userId_fundName: {
+            userId: req.user!.id,
+            fundName: input.fundName,
+          },
+        },
+        create: { userId: req.user!.id, fundName: input.fundName },
+        update: {},
+      });
+    } else {
+      await prisma.stockFavorite.deleteMany({
+        where: { userId: req.user!.id, fundName: input.fundName },
+      });
+    }
+
+    return res.json({
+      data: { fundName: input.fundName, isFavorite: input.favorite },
     });
   }),
 );

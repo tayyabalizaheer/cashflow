@@ -253,6 +253,8 @@ function latestRecordTime(record: RecordItem) {
   return Math.max(
     timeValue(record.updatedAt),
     timeValue(record.createdAt),
+    timeValue(record.latestValuationDate),
+    timeValue(record.purchaseDate),
     timeValue(record.valuationDate),
     timeValue(record.acquisitionDate),
     timeValue(record.expenseDate),

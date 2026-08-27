@@ -2235,15 +2235,88 @@ th {
   min-width: 240px;
 }
 
-.stock-table td:first-child strong,
-.stock-table td:first-child span {
-  display: block;
+.stock-name-cell,
+.stock-card-title-line {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
 }
 
-.stock-table td:first-child span {
+.stock-name-copy {
+  min-width: 0;
+}
+
+.stock-name-copy strong,
+.stock-name-copy span,
+.stock-name-copy small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.stock-name-copy span {
   margin-top: 3px;
   color: var(--muted);
   font-size: 0.84rem;
+}
+
+.stock-trend {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: var(--mist);
+}
+
+.stock-trend.up {
+  color: var(--green);
+  background: rgba(36, 123, 81, 0.12);
+}
+
+.stock-trend.down {
+  color: var(--berry);
+  background: rgba(177, 70, 90, 0.12);
+}
+
+.stock-trend.flat {
+  color: var(--blue);
+  background: rgba(91, 111, 149, 0.13);
+}
+
+.stock-favorite-button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.stock-favorite-button svg {
+  fill: transparent;
+}
+
+.stock-favorite-button.selected {
+  border-color: rgba(244, 201, 93, 0.72);
+  background: rgba(244, 201, 93, 0.18);
+  color: #9a6b00;
+}
+
+.stock-favorite-button.selected svg {
+  fill: currentColor;
+}
+
+.stock-favorite-button:disabled {
+  cursor: progress;
+  opacity: 0.68;
 }
 
 .clickable-row {
@@ -2310,6 +2383,11 @@ th {
 .stock-card-header {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
+}
+
+.stock-card:focus-visible {
+  outline: 3px solid rgba(244, 201, 93, 0.8);
+  outline-offset: 2px;
 }
 
 .stock-card-header strong,

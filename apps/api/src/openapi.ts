@@ -41,6 +41,7 @@ export const openApiDocument = {
     "/loans/{loanId}/repayments": { post: { summary: "Record loan repayment" } },
     "/investments": { get: { summary: "List investments" }, post: { summary: "Create investment" } },
     "/stocks": { get: { summary: "List scraped stock prices" } },
+    "/stocks/favorites": { put: { summary: "Set stock favorite state" } },
     "/stocks/options": { get: { summary: "List stock filter options" } },
     "/stocks/{id}": { get: { summary: "Get scraped stock price details" } },
     "/assets": { get: { summary: "List assets" }, post: { summary: "Create asset" } },

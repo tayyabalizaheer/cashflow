@@ -35,6 +35,7 @@ model User {
   loanRepayments      LoanRepayment[]
   investments         Investment[]
   assets              Asset[]
+  stockFavorites      StockFavorite[]
   exchangeRates       ExchangeRate[]
   zakatCalculations   ZakatCalculation[]
   zakatPayments       ZakatPayment[]
@@ -398,6 +399,19 @@ model Stock {
   @@index([validityDate], map: "stock_validityDate_idx")
   @@index([category], map: "stock_category_idx")
   @@map("stock")
+}
+
+model StockFavorite {
+  id        String   @id @default(uuid())
+  userId    String
+  fundName  String   @db.VarChar(191)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fundName], map: "stock_favorite_userId_fundName_key")
+  @@index([userId], map: "stock_favorite_userId_idx")
+  @@map("stock_favorite")
 }
 
 model Asset {
