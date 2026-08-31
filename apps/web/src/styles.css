@@ -1659,6 +1659,33 @@ th {
   line-height: 1.35;
 }
 
+.loan-balance-totals {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.loan-balance-total {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 800;
+}
+
+.loan-balance-total.credit {
+  color: var(--green);
+}
+
+.loan-balance-total.debit {
+  color: var(--berry);
+}
+
+.loan-balance-total svg {
+  flex: 0 0 auto;
+  stroke-width: 2.5;
+}
+
 .loan-balance-item strong {
   font-size: 1.25rem;
   line-height: 1.15;

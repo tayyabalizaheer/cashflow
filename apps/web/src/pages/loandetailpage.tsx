@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft,
+  ArrowDown,
+  ArrowUp,
   Camera,
   Image,
   MoreVertical,
@@ -659,17 +661,29 @@ export function LoanDetailPage() {
                 {formatCurrencyValueOnly(balance.balance, balance.currency)}{" "}
                 {balance.currency}
               </strong>
-              <small>
-                Credit{" "}
-                {formatCurrencyValueOnly(
-                  balanceTotalsByCurrency.get(balance.currency)?.credit ?? 0,
-                  balance.currency,
-                )}{" "}
-                | Debit{" "}
-                {formatCurrencyValueOnly(
-                  balanceTotalsByCurrency.get(balance.currency)?.debit ?? 0,
-                  balance.currency,
-                )}
+              <small className="loan-balance-totals">
+                <span
+                  className="loan-balance-total credit"
+                  aria-label="Credit total"
+                  title="Credit total"
+                >
+                  <ArrowUp size={12} aria-hidden="true" />
+                  {formatCurrencyValueOnly(
+                    balanceTotalsByCurrency.get(balance.currency)?.credit ?? 0,
+                    balance.currency,
+                  )}
+                </span>
+                <span
+                  className="loan-balance-total debit"
+                  aria-label="Debit total"
+                  title="Debit total"
+                >
+                  <ArrowDown size={12} aria-hidden="true" />
+                  {formatCurrencyValueOnly(
+                    balanceTotalsByCurrency.get(balance.currency)?.debit ?? 0,
+                    balance.currency,
+                  )}
+                </span>
               </small>
             </div>
           ))}
