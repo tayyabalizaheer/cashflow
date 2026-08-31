@@ -109,6 +109,23 @@ type AssetDisplayItem = RecordItem & {
   currencyValues: AssetCurrencyValue[];
 };
 
+type InvestmentGroupTotal = {
+  currencyCode: string;
+  cost: number;
+  currentValue: number;
+};
+
+type InvestmentGroup = {
+  key: string;
+  title: string;
+  type: string;
+  latestDate: string;
+  transactionCount: number;
+  quantityTotal: number | null;
+  totals: InvestmentGroupTotal[];
+  transactions: RecordItem[];
+};
+
 type ExpenseSetupState = {
   name: string;
   categoryId: string;
@@ -185,7 +202,7 @@ const config = {
   investments: {
     title: "Investments",
     singular: "investment",
-    endpoint: "/investments",
+    endpoint: "/investments?pageSize=100",
     empty:
       "No investments yet. Add cost basis, quantity, and NAV to track value.",
     columns: [
@@ -411,6 +428,68 @@ function investmentDate(investment: RecordItem) {
   return date ? formatAppDate(date, "") : "";
 }
 
+function investmentGroupKey(investment: RecordItem) {
+  const type = investment.type?.trim() || "Investment";
+  const name = investmentTitle(investment).trim();
+  return `${type.toLowerCase()}:${name.toLowerCase()}`;
+}
+
+function investmentGroups(investments: RecordItem[]) {
+  const grouped = new Map<string, RecordItem[]>();
+
+  investments.forEach((investment) => {
+    const key = investmentGroupKey(investment);
+    grouped.set(key, [...(grouped.get(key) ?? []), investment]);
+  });
+
+  return [...grouped.entries()]
+    .map(([key, transactions]): InvestmentGroup => {
+      const orderedTransactions = [...transactions].sort(
+        compareInvestmentsByPurchaseDateDesc,
+      );
+      const first = orderedTransactions[0]!;
+      const totalsByCurrency = new Map<string, InvestmentGroupTotal>();
+      let quantityTotal = 0;
+      let hasQuantity = false;
+
+      orderedTransactions.forEach((transaction) => {
+        const currencyCode = transaction.currency;
+        const currentTotal = totalsByCurrency.get(currencyCode) ?? {
+          currencyCode,
+          cost: 0,
+          currentValue: 0,
+        };
+        currentTotal.cost += Number(transaction.amountInvested ?? 0);
+        currentTotal.currentValue += Number(investmentCurrentValue(transaction));
+        totalsByCurrency.set(currencyCode, currentTotal);
+
+        const quantity = Number(transaction.quantity);
+        if (Number.isFinite(quantity)) {
+          quantityTotal += quantity;
+          hasQuantity = true;
+        }
+      });
+
+      return {
+        key,
+        title: investmentTitle(first),
+        type: first.type ?? "Investment",
+        latestDate: investmentDate(first),
+        transactionCount: orderedTransactions.length,
+        quantityTotal: hasQuantity ? quantityTotal : null,
+        totals: [...totalsByCurrency.values()].sort((left, right) =>
+          left.currencyCode.localeCompare(right.currencyCode),
+        ),
+        transactions: orderedTransactions,
+      };
+    })
+    .sort(
+      (left, right) =>
+        investmentPurchaseTime(right.transactions[0]!) -
+        investmentPurchaseTime(left.transactions[0]!),
+    );
+}
+
 function detailDate(value?: string | null) {
   return formatAppDate(value);
 }
@@ -494,104 +573,89 @@ function AssetList({
 function InvestmentList({
   investments,
   emptyLabel,
-  openActionMenu,
-  onToggleActions,
   onShowDetails,
-  onEdit,
-  onRequestDelete,
 }: {
   investments: RecordItem[];
   emptyLabel: string;
-  openActionMenu: string | null;
-  onToggleActions: (id: string) => void;
   onShowDetails: (investment: RecordItem) => void;
-  onEdit: (investment: RecordItem) => void;
-  onRequestDelete: (investment: RecordItem) => void;
 }) {
   if (investments.length === 0) {
     return <div className="empty-state">{emptyLabel}</div>;
   }
 
+  const groups = investmentGroups(investments);
+
   return (
-    <div className="investment-list">
-      {investments.map((investment) => (
-        <article className="investment-card" key={investment.id}>
-          <div className="investment-card-main">
+    <div className="investment-list investment-group-list">
+      {groups.map((group) => (
+        <article
+          className="investment-card investment-group-card"
+          key={group.key}
+        >
+          <div className="investment-group-summary">
             <div className="asset-title-block">
-              <strong>{investmentTitle(investment)}</strong>
+              <strong>{group.title}</strong>
               <span>
-                {investment.type ?? "Investment"}
-                {investmentDate(investment)
-                  ? ` | ${investmentDate(investment)}`
-                  : ""}
+                {group.type}
+                {group.latestDate ? ` | ${group.latestDate}` : ""}
               </span>
             </div>
             <div className="investment-value-grid">
               <div className="asset-value-cell">
                 <span>Total cost</span>
-                <strong>
-                  {formatAmountWithCode(
-                    investment.amountInvested ?? "0",
-                    investment.currency,
-                  )}
-                </strong>
+                {group.totals.map((total) => (
+                  <strong key={total.currencyCode}>
+                    {formatAmountWithCode(total.cost, total.currencyCode)}
+                  </strong>
+                ))}
               </div>
               <div className="asset-value-cell">
-                <span>Initial value</span>
-                <strong>
-                  {formatAmountWithCode(
-                    investmentInitialValue(investment),
-                    investment.currency,
-                  )}
-                </strong>
+                <span>Current value</span>
+                {group.totals.map((total) => (
+                  <strong key={total.currencyCode}>
+                    {formatAmountWithCode(
+                      total.currentValue,
+                      total.currencyCode,
+                    )}
+                  </strong>
+                ))}
               </div>
               <div className="asset-value-cell">
                 <span>No. of units</span>
                 <strong>
-                  {investment.quantity
-                    ? formatNumber(investment.quantity)
+                  {group.quantityTotal != null
+                    ? formatNumber(group.quantityTotal)
                     : "-"}
                 </strong>
               </div>
               <div className="asset-value-cell">
-                <span>Current value</span>
-                <strong>
-                  {formatAmountWithCode(
-                    investmentCurrentValue(investment),
-                    investment.currency,
-                  )}
-                </strong>
+                <span>Transactions</span>
+                <strong>{group.transactionCount}</strong>
               </div>
             </div>
           </div>
-          <div className="row-menu-wrap">
-            <button
-              className="icon-button"
-              type="button"
-              title="Actions"
-              onClick={() => onToggleActions(investment.id)}
-            >
-              <MoreVertical size={16} />
-            </button>
-            {openActionMenu === investment.id ? (
-              <div className="action-menu">
-                <button type="button" onClick={() => onShowDetails(investment)}>
-                  <Eye size={15} />
-                  Details
-                </button>
-                <button type="button" onClick={() => onEdit(investment)}>
-                  <Pencil size={15} />
-                  Edit
-                </button>
+          <div className="investment-transaction-section">
+            <div className="investment-transaction-divider">
+              <span>Transactions</span>
+            </div>
+            <div className="investment-transaction-list">
+              {group.transactions.map((transaction) => (
                 <button
+                  className="investment-transaction-row"
                   type="button"
-                  onClick={() => onRequestDelete(investment)}
+                  key={transaction.id}
+                  onClick={() => onShowDetails(transaction)}
                 >
-                  <Trash2 size={15} />
-                  Move to trash
+                  <span>{investmentTitle(transaction)}</span>
+                  <strong>
+                    {formatAmountWithCode(
+                      transaction.amountInvested ?? "0",
+                      transaction.currency,
+                    )}
+                  </strong>
                 </button>
-              </div>
-            ) : null}
+              ))}
+            </div>
           </div>
         </article>
       ))}
@@ -1955,13 +2019,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
         <InvestmentList
           investments={rows}
           emptyLabel={page.empty}
-          openActionMenu={openActionMenu}
-          onToggleActions={(id) =>
-            setOpenActionMenu((current) => (current === id ? null : id))
-          }
           onShowDetails={showInvestmentDetails}
-          onEdit={startEditInvestment}
-          onRequestDelete={requestDeleteInvestment}
         />
         {investmentDetail ? (
           <div
@@ -2063,6 +2121,30 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                   <dd>{investmentDetail.notes || "No notes"}</dd>
                 </div>
               </dl>
+              <div className="confirm-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => {
+                    const selectedInvestment = investmentDetail;
+                    setInvestmentDetail(null);
+                    startEditInvestment(selectedInvestment);
+                  }}
+                >
+                  Edit
+                </button>
+                <button
+                  className="primary-button danger-button"
+                  type="button"
+                  onClick={() => {
+                    const selectedInvestment = investmentDetail;
+                    setInvestmentDetail(null);
+                    requestDeleteInvestment(selectedInvestment);
+                  }}
+                >
+                  Move to trash
+                </button>
+              </div>
             </section>
           </div>
         ) : null}

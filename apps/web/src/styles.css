@@ -1036,6 +1036,10 @@ th {
   gap: 12px;
 }
 
+.investment-group-list {
+  gap: 16px;
+}
+
 .asset-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1060,6 +1064,12 @@ th {
   box-shadow: 0 14px 38px rgba(23, 35, 34, 0.08);
 }
 
+.investment-group-card {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
+
 .asset-card-main {
   display: grid;
   grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.6fr);
@@ -1072,6 +1082,14 @@ th {
   grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.6fr);
   gap: 14px;
   align-items: center;
+}
+
+.investment-group-summary {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.6fr);
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
 }
 
 .asset-title-block,
@@ -1115,6 +1133,65 @@ th {
 .asset-value-cell strong {
   margin-top: 3px;
   line-height: 1.15;
+}
+
+.investment-transaction-section {
+  border-top: 1px solid var(--line);
+  background: var(--mist);
+}
+
+.investment-transaction-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.investment-transaction-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--line);
+}
+
+.investment-transaction-list {
+  display: grid;
+}
+
+.investment-transaction-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.investment-transaction-row:hover,
+.investment-transaction-row:focus-visible {
+  background: var(--teal-soft);
+}
+
+.investment-transaction-row span,
+.investment-transaction-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.investment-transaction-row strong {
+  text-align: right;
 }
 
 .expense-list {
@@ -2662,6 +2739,7 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
   .asset-card,
   .asset-card-main,
   .investment-card-main,
+  .investment-group-summary,
   .expense-card-row,
   .expense-card-header,
   .expense-detail-summary,
@@ -2691,6 +2769,10 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
   .investment-card-main {
     grid-column: 1;
     grid-row: 1;
+    min-width: 0;
+  }
+
+  .investment-group-summary {
     min-width: 0;
   }
 
