@@ -29,6 +29,11 @@ type LoanBalance = {
   balance: string;
 };
 
+type LoanCurrencyTotals = {
+  credit: number;
+  debit: number;
+};
+
 type Attachment = {
   id?: string;
   fileName?: string | null;
@@ -214,6 +219,32 @@ function compareTransactionsByCreatedDesc(
 
 function formatCurrencyValueOnly(value: number | string, currency: string) {
   return formatCurrency(value, currency).replace(currency, "").trim();
+}
+
+function transactionAmountValue(amount: string) {
+  const value = Number(amount);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function loanTransactionTotalsByCurrency(transactions: LoanTransaction[] = []) {
+  return transactions
+    .filter((transaction) => !transaction.archivedAt)
+    .reduce<Map<string, LoanCurrencyTotals>>((totals, transaction) => {
+      const current = totals.get(transaction.currency) ?? {
+        credit: 0,
+        debit: 0,
+      };
+      const amount = transactionAmountValue(transaction.amount);
+
+      if (transaction.kind === "CREDIT") {
+        current.credit += amount;
+      } else {
+        current.debit += amount;
+      }
+
+      totals.set(transaction.currency, current);
+      return totals;
+    }, new Map());
 }
 
 function shareBalanceSentence(
@@ -522,6 +553,9 @@ export function LoanDetailPage() {
   const balanceTotalText = displayedBalances
     .map((balance) => formatCurrency(balance.balance, balance.currency))
     .join(" | ");
+  const balanceTotalsByCurrency = loanTransactionTotalsByCurrency(
+    loan.transactions,
+  );
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const visibleTransactions = [...(loan.transactions ?? [])]
     .filter((transaction) => !transaction.archivedAt)
@@ -625,6 +659,18 @@ export function LoanDetailPage() {
                 {formatCurrencyValueOnly(balance.balance, balance.currency)}{" "}
                 {balance.currency}
               </strong>
+              <small>
+                Credit{" "}
+                {formatCurrencyValueOnly(
+                  balanceTotalsByCurrency.get(balance.currency)?.credit ?? 0,
+                  balance.currency,
+                )}{" "}
+                | Debit{" "}
+                {formatCurrencyValueOnly(
+                  balanceTotalsByCurrency.get(balance.currency)?.debit ?? 0,
+                  balance.currency,
+                )}
+              </small>
             </div>
           ))}
         </div>

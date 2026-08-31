@@ -1653,6 +1653,12 @@ th {
   font-size: 0.82rem;
 }
 
+.loan-balance-item small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 .loan-balance-item strong {
   font-size: 1.25rem;
   line-height: 1.15;
