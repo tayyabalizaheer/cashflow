@@ -140,6 +140,15 @@ function detailValue(stock: Stock, row: (typeof detailRows)[number]) {
   return formatValue(value);
 }
 
+function favoriteStocksFirst(stocks: Stock[]) {
+  return [...stocks].sort((left, right) => {
+    const favoriteSort =
+      Number(Boolean(right.isFavorite)) - Number(Boolean(left.isFavorite));
+    if (favoriteSort !== 0) return favoriteSort;
+    return 0;
+  });
+}
+
 function trendLabel(stock: Stock) {
   const trend = stock.trend;
   if (!trend?.direction || !trend.basis) return "No previous record";
@@ -275,7 +284,10 @@ export function StocksPage() {
     },
   });
 
-  const stocks = query.data?.data ?? [];
+  const stocks = useMemo(
+    () => favoriteStocksFirst(query.data?.data ?? []),
+    [query.data?.data],
+  );
   const total = query.data?.meta.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;

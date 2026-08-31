@@ -1630,6 +1630,19 @@ function averageStockRows(rows: Array<Record<string, any>>) {
   });
 }
 
+function sortStockRowsForUser(
+  rows: Array<Record<string, any>>,
+  favoriteNames: Set<string>,
+) {
+  return [...rows].sort((left, right) => {
+    const favoriteSort =
+      Number(favoriteNames.has(right.fundName)) -
+      Number(favoriteNames.has(left.fundName));
+    if (favoriteSort !== 0) return favoriteSort;
+    return 0;
+  });
+}
+
 function stockTrendFor(
   item: Record<string, any>,
   historicalRows: Array<Record<string, any>>,
@@ -1687,31 +1700,39 @@ function stockTrendFor(
   };
 }
 
-async function stockRowsWithUserState(
+async function favoriteStockNamesFor(
   rows: Array<Record<string, any>>,
   userId: string,
 ) {
   const fundNames = [...new Set(rows.map((row) => row.fundName))];
+  if (fundNames.length === 0) return new Set<string>();
+
+  const favorites = await prisma.stockFavorite.findMany({
+    where: { userId, fundName: { in: fundNames } },
+    select: { fundName: true },
+  });
+
+  return new Set(favorites.map((favorite) => favorite.fundName));
+}
+
+async function stockRowsWithUserState(
+  rows: Array<Record<string, any>>,
+  favoriteNames: Set<string>,
+) {
+  const fundNames = [...new Set(rows.map((row) => row.fundName))];
   if (fundNames.length === 0) return rows;
 
-  const [favorites, trendRows] = await Promise.all([
-    prisma.stockFavorite.findMany({
-      where: { userId, fundName: { in: fundNames } },
-      select: { fundName: true },
-    }),
-    prisma.stock.findMany({
-      where: { fundName: { in: fundNames } },
-      select: {
-        fundName: true,
-        validityDate: true,
-        repurchasePrice: true,
-        navPrice: true,
-        offerPrice: true,
-      },
-      orderBy: [{ fundName: "asc" }, { validityDate: "desc" }],
-    }),
-  ]);
-  const favoriteNames = new Set(favorites.map((favorite) => favorite.fundName));
+  const trendRows = await prisma.stock.findMany({
+    where: { fundName: { in: fundNames } },
+    select: {
+      fundName: true,
+      validityDate: true,
+      repurchasePrice: true,
+      navPrice: true,
+      offerPrice: true,
+    },
+    orderBy: [{ fundName: "asc" }, { validityDate: "desc" }],
+  });
 
   return rows.map((row) => ({
     ...row,
@@ -1763,11 +1784,12 @@ financeRouter.get(
         where,
         orderBy: [{ fundName: "asc" }, { validityDate: "desc" }],
       });
-      const items = averageStockRows(rows);
+      const favoriteNames = await favoriteStockNamesFor(rows, req.user!.id);
+      const items = sortStockRowsForUser(averageStockRows(rows), favoriteNames);
       return res.json({
         data: await stockRowsWithUserState(
           items.slice(skip, skip + take),
-          req.user!.id,
+          favoriteNames,
         ),
         meta: {
           page,
@@ -1779,17 +1801,20 @@ financeRouter.get(
       });
     }
 
-    const [items, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       prisma.stock.findMany({
         where,
-        skip,
-        take,
         orderBy: [{ validityDate: "desc" }, { fundName: "asc" }],
       }),
       prisma.stock.count({ where }),
     ]);
+    const favoriteNames = await favoriteStockNamesFor(rows, req.user!.id);
+    const items = sortStockRowsForUser(rows, favoriteNames).slice(
+      skip,
+      skip + take,
+    );
     return res.json({
-      data: await stockRowsWithUserState(items, req.user!.id),
+      data: await stockRowsWithUserState(items, favoriteNames),
       meta: {
         page,
         pageSize,
