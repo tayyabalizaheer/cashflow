@@ -1229,6 +1229,10 @@ th {
   cursor: pointer;
 }
 
+.card-record .money-record-main {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .money-record-title {
   min-width: 0;
   display: grid;

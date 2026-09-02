@@ -32,22 +32,25 @@ type Card = {
   id: string;
   accountId?: string | null;
   cardName: string;
+  cardNumberFirstFour?: string | null;
+  cardNumberLastTwo?: string | null;
   cardholderName?: string | null;
   issuer?: string | null;
   network?: string | null;
-  cardType: string;
-  lastFour?: string | null;
+  cardType?: string | null;
+  fullCardNumber?: string | null;
   expiryMonth?: number | null;
   expiryYear?: number | null;
-  currency: string;
+  currency?: string | null;
   creditLimit?: string | null;
   availableLimit?: string | null;
   billingCycleDay?: number | null;
   paymentDueDay?: number | null;
-  status: string;
+  status?: string | null;
   pinnedAt?: string | null;
   notes?: string | null;
   account?: AccountSummary | null;
+  cvcStored?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -59,7 +62,7 @@ type CardForm = {
   issuer: string;
   network: string;
   cardType: string;
-  lastFour: string;
+  cardNumber: string;
   expiryMonth: string;
   expiryYear: string;
   currency: string;
@@ -79,7 +82,7 @@ const emptyCardForm: CardForm = {
   issuer: "",
   network: "",
   cardType: "Debit",
-  lastFour: "",
+  cardNumber: "",
   expiryMonth: "",
   expiryYear: "",
   currency: "",
@@ -122,7 +125,12 @@ function expiryText(card: Pick<Card, "expiryMonth" | "expiryYear">) {
 }
 
 function cardNumberText(card: Card) {
-  return card.lastFour ? `**** ${card.lastFour}` : "No number saved";
+  if (card.fullCardNumber) return card.fullCardNumber;
+  if (card.cardNumberFirstFour && card.cardNumberLastTwo) {
+    return `${card.cardNumberFirstFour} ... ${card.cardNumberLastTwo}`;
+  }
+  if (card.cardNumberLastTwo) return `Ends ${card.cardNumberLastTwo}`;
+  return "No number saved";
 }
 
 function formFromCard(card: Card): CardForm {
@@ -132,16 +140,16 @@ function formFromCard(card: Card): CardForm {
     cardholderName: card.cardholderName ?? "",
     issuer: card.issuer ?? "",
     network: card.network ?? "",
-    cardType: card.cardType,
-    lastFour: card.lastFour ?? "",
+    cardType: card.cardType ?? "Debit",
+    cardNumber: card.fullCardNumber ?? "",
     expiryMonth: card.expiryMonth ? String(card.expiryMonth) : "",
     expiryYear: card.expiryYear ? String(card.expiryYear) : "",
-    currency: card.currency,
+    currency: card.currency ?? "",
     creditLimit: card.creditLimit ?? "",
     availableLimit: card.availableLimit ?? "",
     billingCycleDay: card.billingCycleDay ? String(card.billingCycleDay) : "",
     paymentDueDay: card.paymentDueDay ? String(card.paymentDueDay) : "",
-    status: card.status,
+    status: card.status ?? "Active",
     pinned: Boolean(card.pinnedAt),
     notes: card.notes ?? "",
   };
@@ -155,7 +163,7 @@ function payloadFromForm(form: CardForm, pinnedAt?: string | null) {
     issuer: optionalString(form.issuer),
     network: optionalString(form.network),
     cardType: form.cardType,
-    lastFour: optionalString(form.lastFour),
+    cardNumber: optionalString(form.cardNumber),
     expiryMonth: optionalNumber(form.expiryMonth),
     expiryYear: optionalNumber(form.expiryYear),
     currency: form.currency,
@@ -169,56 +177,68 @@ function payloadFromForm(form: CardForm, pinnedAt?: string | null) {
   };
 }
 
-function payloadFromCard(card: Card, pinnedAt: string | null) {
-  return payloadFromForm(formFromCard({ ...card, pinnedAt }), pinnedAt);
-}
-
 function CardDetails({
   card,
+  revealedCard,
+  password,
+  revealError,
+  revealPending,
   onClose,
+  onPasswordChange,
+  onReveal,
   onEdit,
   onDelete,
 }: {
   card: Card;
+  revealedCard: Card | null;
+  password: string;
+  revealError?: Error | null;
+  revealPending: boolean;
   onClose: () => void;
+  onPasswordChange: (password: string) => void;
+  onReveal: (event: FormEvent<HTMLFormElement>) => void;
   onEdit: (card: Card) => void;
   onDelete: (card: Card) => void;
 }) {
+  const unlocked = revealedCard ?? null;
   const details = [
-    ["Card", card.cardName],
-    ["Type", card.cardType],
-    ["Status", card.status],
-    ["Issuer", card.issuer],
-    ["Network", card.network],
+    ["Card", unlocked?.cardName],
+    ["Type", unlocked?.cardType],
+    ["Status", unlocked?.status],
+    ["Issuer", unlocked?.issuer],
+    ["Network", unlocked?.network],
     [
       "Linked account",
-      card.account
-        ? `${card.account.accountName} - ${card.account.bankName}`
+      unlocked?.account
+        ? `${unlocked.account.accountName} - ${unlocked.account.bankName}`
         : null,
     ],
-    ["Cardholder", card.cardholderName],
-    ["Number", cardNumberText(card)],
-    ["Expiry", expiryText(card)],
+    ["Cardholder", unlocked?.cardholderName],
+    ["Card number", unlocked ? cardNumberText(unlocked) : null],
+    ["CVC", "Not stored"],
+    ["Expiry", unlocked ? expiryText(unlocked) : null],
     [
       "Credit limit",
-      card.creditLimit ? formatCurrency(card.creditLimit, card.currency) : null,
+      unlocked?.creditLimit && unlocked.currency
+        ? formatCurrency(unlocked.creditLimit, unlocked.currency)
+        : null,
     ],
     [
       "Available limit",
-      card.availableLimit
-        ? formatCurrency(card.availableLimit, card.currency)
+      unlocked?.availableLimit && unlocked.currency
+        ? formatCurrency(unlocked.availableLimit, unlocked.currency)
         : null,
     ],
     [
       "Billing day",
-      card.billingCycleDay ? `Day ${card.billingCycleDay}` : null,
+      unlocked?.billingCycleDay ? `Day ${unlocked.billingCycleDay}` : null,
     ],
     [
       "Payment due day",
-      card.paymentDueDay ? `Day ${card.paymentDueDay}` : null,
+      unlocked?.paymentDueDay ? `Day ${unlocked.paymentDueDay}` : null,
     ],
     ["Pinned", card.pinnedAt ? "Yes" : "No"],
-    ["Notes", card.notes],
+    ["Notes", unlocked?.notes],
   ];
 
   return (
@@ -233,6 +253,7 @@ function CardDetails({
           <div>
             <p className="eyebrow">Card details</p>
             <h2>{card.cardName}</h2>
+            <p className="muted-text">{cardNumberText(card)}</p>
           </div>
           <button
             className="icon-button"
@@ -243,22 +264,58 @@ function CardDetails({
             <X size={16} />
           </button>
         </div>
-        <dl className="detail-list">
-          {details.map(([label, value]) => (
-            <div key={label}>
-              <dt>{label}</dt>
-              <dd>{value || "-"}</dd>
+        {unlocked ? (
+          <dl className="detail-list">
+            {details.map(([label, value]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value || "-"}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <form className="modal-form-body" onSubmit={onReveal}>
+            <label>
+              Password
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => onPasswordChange(event.target.value)}
+                autoComplete="current-password"
+                autoFocus
+                required
+              />
+            </label>
+            {revealError ? (
+              <div className="form-error">{revealError.message}</div>
+            ) : null}
+            <div className="confirm-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={onClose}
+              >
+                Cancel
+              </button>
+              <button
+                className="primary-button"
+                disabled={revealPending || !password}
+              >
+                Show details
+              </button>
             </div>
-          ))}
-        </dl>
+          </form>
+        )}
         <div className="confirm-actions">
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => onEdit(card)}
-          >
-            Edit
-          </button>
+          {unlocked ? (
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => onEdit(unlocked)}
+            >
+              Edit
+            </button>
+          ) : null}
           <button
             className="primary-button danger-button"
             type="button"
@@ -278,6 +335,8 @@ export function CardsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
   const [detailCard, setDetailCard] = useState<Card | null>(null);
+  const [revealedCard, setRevealedCard] = useState<Card | null>(null);
+  const [revealPassword, setRevealPassword] = useState("");
   const [cardToDelete, setCardToDelete] = useState<Card | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [form, setForm] = useState<CardForm>(emptyCardForm);
@@ -313,6 +372,7 @@ export function CardsPage() {
       api<{ data: Card }>("/cards", {
         method: "POST",
         body: JSON.stringify(payload),
+        onlineOnly: true,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cards"] });
@@ -325,11 +385,13 @@ export function CardsPage() {
   const updateCard = useMutation({
     mutationFn: (payload: {
       id: string;
-      body: ReturnType<typeof payloadFromForm>;
+      body: Record<string, unknown>;
+      onlineOnly?: boolean;
     }) =>
       api<{ data: Card }>(`/cards/${payload.id}`, {
         method: "PUT",
         body: JSON.stringify(payload.body),
+        ...(payload.onlineOnly ? { onlineOnly: true } : {}),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cards"] });
@@ -351,19 +413,23 @@ export function CardsPage() {
     },
   });
 
+  const revealCard = useMutation({
+    mutationFn: (payload: { id: string; password: string }) =>
+      api<{ data: Card }>(`/cards/${payload.id}/reveal`, {
+        method: "POST",
+        body: JSON.stringify({ password: payload.password }),
+        onlineOnly: true,
+      }),
+    onSuccess: (response) => {
+      setRevealedCard(response.data);
+      setRevealPassword("");
+    },
+  });
+
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const cards = [...(data?.data ?? [])].sort(compareCards).filter((card) => {
     if (!normalizedSearch) return true;
-    return [
-      card.cardName,
-      card.cardholderName,
-      card.issuer,
-      card.network,
-      card.cardType,
-      card.lastFour,
-      card.account?.accountName,
-      card.account?.bankName,
-    ]
+    return [card.cardName, card.cardNumberFirstFour, card.cardNumberLastTwo]
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(normalizedSearch));
   });
@@ -408,7 +474,11 @@ export function CardsPage() {
       : undefined;
     const payload = payloadFromForm(form, nextPinnedAt);
     if (editingCard) {
-      updateCard.mutate({ id: editingCard.id, body: payload });
+      updateCard.mutate({
+        id: editingCard.id,
+        body: payload,
+        onlineOnly: true,
+      });
       return;
     }
     createCard.mutate(payload);
@@ -416,6 +486,8 @@ export function CardsPage() {
 
   function requestDelete(card: Card) {
     setDetailCard(null);
+    setRevealedCard(null);
+    setRevealPassword("");
     setCardToDelete(card);
     setActiveMenuId(null);
   }
@@ -434,8 +506,28 @@ export function CardsPage() {
 
     updateCard.mutate({
       id: card.id,
-      body: payloadFromCard(card, pinnedAt),
+      body: { pinnedAt },
     });
+  }
+
+  function openDetails(card: Card) {
+    setDetailCard(card);
+    setRevealedCard(null);
+    setRevealPassword("");
+    revealCard.reset();
+  }
+
+  function closeDetails() {
+    setDetailCard(null);
+    setRevealedCard(null);
+    setRevealPassword("");
+    revealCard.reset();
+  }
+
+  function submitReveal(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!detailCard) return;
+    revealCard.mutate({ id: detailCard.id, password: revealPassword });
   }
 
   return (
@@ -486,7 +578,7 @@ export function CardsPage() {
             <button
               className="money-record-main"
               type="button"
-              onClick={() => setDetailCard(card)}
+              onClick={() => openDetails(card)}
             >
               <div className="money-record-title">
                 <CreditCard size={18} />
@@ -501,31 +593,7 @@ export function CardsPage() {
                       />
                     ) : null}
                   </strong>
-                  <span>
-                    {[card.issuer, card.network, cardNumberText(card)]
-                      .filter(Boolean)
-                      .join(" | ")}
-                  </span>
-                </div>
-              </div>
-              <div className="money-record-grid">
-                <div className="asset-value-cell">
-                  <span>Type</span>
-                  <strong>{card.cardType}</strong>
-                </div>
-                <div className="asset-value-cell">
-                  <span>Limit</span>
-                  <strong>
-                    {card.creditLimit
-                      ? formatCurrency(card.creditLimit, card.currency)
-                      : "-"}
-                  </strong>
-                </div>
-                <div className="asset-value-cell">
-                  <span>Due day</span>
-                  <strong>
-                    {card.paymentDueDay ? `Day ${card.paymentDueDay}` : "-"}
-                  </strong>
+                  <span>{cardNumberText(card)}</span>
                 </div>
               </div>
             </button>
@@ -548,7 +616,7 @@ export function CardsPage() {
                   role="menu"
                   aria-label={`${card.cardName} actions`}
                 >
-                  <button type="button" onClick={() => setDetailCard(card)}>
+                  <button type="button" onClick={() => openDetails(card)}>
                     <Eye size={15} />
                     <span>Details</span>
                   </button>
@@ -556,9 +624,9 @@ export function CardsPage() {
                     {card.pinnedAt ? <PinOff size={15} /> : <Pin size={15} />}
                     <span>{card.pinnedAt ? "Unpin card" : "Pin card"}</span>
                   </button>
-                  <button type="button" onClick={() => startEdit(card)}>
+                  <button type="button" onClick={() => openDetails(card)}>
                     <Pencil size={15} />
-                    <span>Edit</span>
+                    <span>Unlock to edit</span>
                   </button>
                   <button type="button" onClick={() => requestDelete(card)}>
                     <Trash2 size={15} />
@@ -687,16 +755,20 @@ export function CardsPage() {
               </div>
               <div className="compact-form">
                 <label>
-                  Last 4 digits
+                  Card number
                   <input
                     inputMode="numeric"
-                    maxLength={4}
-                    pattern="[0-9]{4}"
-                    value={form.lastFour}
+                    maxLength={23}
+                    pattern="[0-9 ]{12,23}"
+                    value={form.cardNumber}
                     onChange={(event) =>
                       updateField(
-                        "lastFour",
-                        event.target.value.replace(/\D/g, "").slice(0, 4),
+                        "cardNumber",
+                        event.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 19)
+                          .replace(/(.{4})/g, "$1 ")
+                          .trim(),
                       )
                     }
                   />
@@ -837,7 +909,8 @@ export function CardsPage() {
                   updateCard.isPending ||
                   !form.cardName.trim() ||
                   !form.currency ||
-                  (Boolean(form.lastFour) && form.lastFour.length !== 4)
+                  (Boolean(form.cardNumber) &&
+                    form.cardNumber.replace(/\D/g, "").length < 12)
                 }
               >
                 {editingCard ? "Save changes" : "Save card"}
@@ -850,7 +923,13 @@ export function CardsPage() {
       {detailCard ? (
         <CardDetails
           card={detailCard}
-          onClose={() => setDetailCard(null)}
+          revealedCard={revealedCard}
+          password={revealPassword}
+          revealError={revealCard.error}
+          revealPending={revealCard.isPending}
+          onClose={closeDetails}
+          onPasswordChange={setRevealPassword}
+          onReveal={submitReveal}
           onEdit={startEdit}
           onDelete={requestDelete}
         />

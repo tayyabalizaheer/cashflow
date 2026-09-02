@@ -271,6 +271,56 @@ function readActiveModuleRecords(db: Database, module: string) {
   );
 }
 
+function safeLocalCard(record: Record<string, unknown>) {
+  const cardNumber =
+    typeof record.cardNumber === "string"
+      ? record.cardNumber.replace(/\D/g, "")
+      : "";
+  const lastFour =
+    typeof record.lastFour === "string"
+      ? record.lastFour.replace(/\D/g, "")
+      : "";
+  return {
+    id: record.id,
+    cardName: record.cardName ?? "Card",
+    cardNumberFirstFour:
+      typeof record.cardNumberFirstFour === "string"
+        ? record.cardNumberFirstFour
+        : cardNumber.length >= 4
+          ? cardNumber.slice(0, 4)
+          : null,
+    cardNumberLastTwo:
+      typeof record.cardNumberLastTwo === "string"
+        ? record.cardNumberLastTwo
+        : cardNumber.length >= 2
+          ? cardNumber.slice(-2)
+          : lastFour.length >= 2
+            ? lastFour.slice(-2)
+            : null,
+    pinnedAt: record.pinnedAt ?? null,
+    createdAt: record.createdAt ?? null,
+    updatedAt: record.updatedAt ?? null,
+  };
+}
+
+function safeLocalAccount(record: Record<string, unknown>) {
+  return {
+    ...record,
+    cards: Array.isArray(record.cards)
+      ? record.cards.filter(isRecord).map(safeLocalCard)
+      : [],
+  };
+}
+
+function safeLocalRecords(
+  module: string,
+  records: Array<Record<string, unknown>>,
+) {
+  if (module === "cards") return records.map(safeLocalCard);
+  if (module === "accounts") return records.map(safeLocalAccount);
+  return records;
+}
+
 function activeRecordsByModule(db: Database) {
   return {
     expenses: readActiveModuleRecords(db, "expenses"),
@@ -433,8 +483,8 @@ function localDashboard(db: Database) {
       loans: records.loans.slice(0, 5),
       investments: records.investments.slice(0, 5),
       assets: records.assets.slice(0, 5),
-      accounts: records.accounts.slice(0, 5),
-      cards: records.cards.slice(0, 5),
+      accounts: safeLocalRecords("accounts", records.accounts.slice(0, 5)),
+      cards: safeLocalRecords("cards", records.cards.slice(0, 5)),
     },
   };
 }
@@ -2196,7 +2246,11 @@ export async function localResponseForPath(path: string) {
     "/cards": "cards",
   };
   const module = moduleMap[pathOnly];
-  if (module) return { data: readActiveModuleRecords(db, module) };
+  if (module) {
+    return {
+      data: safeLocalRecords(module, readActiveModuleRecords(db, module)),
+    };
+  }
   return null;
 }
 

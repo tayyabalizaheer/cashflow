@@ -1,6 +1,9 @@
+import argon2 from "argon2";
+import crypto from "node:crypto";
 import { Router } from "express";
 import { customAlphabet } from "nanoid";
 import { z } from "zod";
+import { env } from "../config/env.js";
 import { prisma } from "../config/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { groupedAssetCount, linkedAssetValues } from "../services/assets.js";
@@ -2051,9 +2054,20 @@ const accountSchema = z.object({
   notes: z.string().max(1000).nullable().optional(),
 });
 
+const safeCardSelect = {
+  id: true,
+  cardName: true,
+  cardNumberFirstFour: true,
+  cardNumberLastTwo: true,
+  pinnedAt: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
 const accountInclude = {
   cards: {
     where: { archivedAt: null },
+    select: safeCardSelect,
     orderBy: [{ pinnedAt: "desc" as const }, { updatedAt: "desc" as const }],
   },
 };
@@ -2135,6 +2149,20 @@ financeRouter.put(
 
 financeRouter.delete("/accounts/:id", archiveRoute(prisma.bankAccount));
 
+const cardNumberSchema = z.preprocess(
+  (value) => {
+    if (value == null) return value;
+    if (typeof value !== "string") return value;
+    const digits = value.replace(/\D/g, "");
+    return digits.length ? digits : null;
+  },
+  z
+    .string()
+    .regex(/^\d{12,19}$/)
+    .nullable()
+    .optional(),
+);
+
 const cardSchema = z.object({
   id: z.string().uuid().optional(),
   accountId: z.string().uuid().nullable().optional(),
@@ -2143,6 +2171,7 @@ const cardSchema = z.object({
   issuer: z.string().trim().max(120).nullable().optional(),
   network: z.string().trim().max(40).nullable().optional(),
   cardType: z.string().trim().min(2).max(60).default("Debit"),
+  cardNumber: cardNumberSchema,
   lastFour: z
     .string()
     .regex(/^\d{4}$/)
@@ -2160,16 +2189,47 @@ const cardSchema = z.object({
   notes: z.string().max(1000).nullable().optional(),
 });
 
-const cardInclude = {
+const cardUpdateSchema = cardSchema.partial();
+
+const cardRevealSchema = z.object({
+  password: z.string().min(1, "Enter your password."),
+});
+
+const cardAccountSelect = {
+  id: true,
+  accountName: true,
+  bankName: true,
+  currency: true,
+} as const;
+
+const cardRevealSelect = {
+  id: true,
+  accountId: true,
+  cardName: true,
+  cardholderName: true,
+  issuer: true,
+  network: true,
+  cardType: true,
+  cardNumberEncrypted: true,
+  cardNumberFirstFour: true,
+  cardNumberLastTwo: true,
+  lastFour: true,
+  expiryMonth: true,
+  expiryYear: true,
+  currency: true,
+  creditLimit: true,
+  availableLimit: true,
+  billingCycleDay: true,
+  paymentDueDay: true,
+  status: true,
+  pinnedAt: true,
+  notes: true,
+  createdAt: true,
+  updatedAt: true,
   account: {
-    select: {
-      id: true,
-      accountName: true,
-      bankName: true,
-      currency: true,
-    },
+    select: cardAccountSelect,
   },
-};
+} as const;
 
 async function ensureCardAccount(userId: string, accountId?: string | null) {
   if (!accountId) return;
@@ -2177,6 +2237,92 @@ async function ensureCardAccount(userId: string, accountId?: string | null) {
     where: { id: accountId, userId, archivedAt: null },
   });
   if (!account) throw notFound("Account not found");
+}
+
+function encryptionKey() {
+  return crypto.createHash("sha256").update(env.COOKIE_SECRET).digest();
+}
+
+function encryptCardNumber(cardNumber: string) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey(), iv);
+  const encrypted = Buffer.concat([
+    cipher.update(cardNumber, "utf8"),
+    cipher.final(),
+  ]);
+  const tag = cipher.getAuthTag();
+  return [
+    "v1",
+    iv.toString("base64"),
+    tag.toString("base64"),
+    encrypted.toString("base64"),
+  ].join(":");
+}
+
+function decryptCardNumber(encryptedValue?: string | null) {
+  if (!encryptedValue) return null;
+  const [version, ivBase64, tagBase64, encryptedBase64] =
+    encryptedValue.split(":");
+  if (version !== "v1" || !ivBase64 || !tagBase64 || !encryptedBase64) {
+    return null;
+  }
+  const decipher = crypto.createDecipheriv(
+    "aes-256-gcm",
+    encryptionKey(),
+    Buffer.from(ivBase64, "base64"),
+  );
+  decipher.setAuthTag(Buffer.from(tagBase64, "base64"));
+  return Buffer.concat([
+    decipher.update(Buffer.from(encryptedBase64, "base64")),
+    decipher.final(),
+  ]).toString("utf8");
+}
+
+function cardNumberMetadata(
+  cardNumber?: string | null,
+  lastFour?: string | null,
+) {
+  const fallbackLastFour = lastFour ?? null;
+  if (!cardNumber) {
+    return {
+      cardNumberEncrypted: null,
+      cardNumberFirstFour: null,
+      cardNumberLastTwo: fallbackLastFour?.slice(-2) ?? null,
+      lastFour: fallbackLastFour,
+    };
+  }
+
+  return {
+    cardNumberEncrypted: encryptCardNumber(cardNumber),
+    cardNumberFirstFour: cardNumber.slice(0, 4),
+    cardNumberLastTwo: cardNumber.slice(-2),
+    lastFour: cardNumber.slice(-4),
+  };
+}
+
+function cardCreateData(input: z.infer<typeof cardSchema>, userId: string) {
+  const { id, cardNumber, lastFour, ...card } = input;
+  return {
+    ...card,
+    ...(id ? { id } : {}),
+    ...cardNumberMetadata(cardNumber, lastFour),
+    userId,
+  };
+}
+
+function cardUpdateData(input: z.infer<typeof cardUpdateSchema>) {
+  const { id: _id, cardNumber, lastFour, ...card } = input;
+  return {
+    ...card,
+    ...(Object.prototype.hasOwnProperty.call(input, "cardNumber")
+      ? cardNumberMetadata(cardNumber, lastFour)
+      : Object.prototype.hasOwnProperty.call(input, "lastFour")
+        ? {
+            lastFour: lastFour ?? null,
+            cardNumberLastTwo: lastFour?.slice(-2) ?? null,
+          }
+        : {}),
+  };
 }
 
 financeRouter.get(
@@ -2209,7 +2355,7 @@ financeRouter.get(
         where,
         skip,
         take,
-        include: cardInclude,
+        select: safeCardSelect,
         orderBy: [{ pinnedAt: "desc" }, { updatedAt: "desc" }],
       }),
       prisma.bankCard.count({ where }),
@@ -2227,13 +2373,13 @@ financeRouter.post(
     if (input.id) {
       const existing = await prisma.bankCard.findFirst({
         where: { id: input.id, userId: req.user!.id, archivedAt: null },
-        include: cardInclude,
+        select: safeCardSelect,
       });
       if (existing) return res.status(200).json({ data: existing });
     }
     const item = await prisma.bankCard.create({
-      data: { ...input, userId: req.user!.id },
-      include: cardInclude,
+      data: cardCreateData(input, req.user!.id),
+      select: safeCardSelect,
     });
     return res.status(201).json({ data: item });
   }),
@@ -2242,16 +2388,57 @@ financeRouter.post(
 financeRouter.put(
   "/cards/:id",
   asyncHandler(async (req, res) => {
-    const input = cardSchema.parse(req.body);
+    const input = cardUpdateSchema.parse(req.body);
     const id = paramUuid(req.params.id);
-    await ensureUserCurrencies(req.user!.id, [input.currency]);
+    if (input.currency)
+      await ensureUserCurrencies(req.user!.id, [input.currency]);
     await ensureCardAccount(req.user!.id, input.accountId);
     const item = await prisma.bankCard.update({
       where: { id, userId: req.user!.id },
-      data: { ...input, id: undefined },
-      include: cardInclude,
+      data: cardUpdateData(input),
+      select: safeCardSelect,
     });
     return res.json({ data: item });
+  }),
+);
+
+financeRouter.post(
+  "/cards/:id/reveal",
+  asyncHandler(async (req, res) => {
+    const id = paramUuid(req.params.id);
+    const input = cardRevealSchema.parse(req.body);
+    const [user, card] = await Promise.all([
+      prisma.user.findFirst({
+        where: { id: req.user!.id, deletedAt: null },
+        select: { id: true, passwordHash: true },
+      }),
+      prisma.bankCard.findFirst({
+        where: { id, userId: req.user!.id, archivedAt: null },
+        select: cardRevealSelect,
+      }),
+    ]);
+    if (!card) throw notFound("Card not found");
+    if (!user || !(await argon2.verify(user.passwordHash, input.password))) {
+      throw new ApiError(401, "Password is incorrect", "INVALID_PASSWORD");
+    }
+
+    await prisma.auditEvent.create({
+      data: {
+        userId: req.user!.id,
+        action: "cards.reveal",
+        entityType: "BankCard",
+        entityId: id,
+      },
+    });
+
+    const { cardNumberEncrypted: _hidden, ...safeCard } = card;
+    return res.json({
+      data: {
+        ...safeCard,
+        fullCardNumber: decryptCardNumber(card.cardNumberEncrypted),
+        cvcStored: false,
+      },
+    });
   }),
 );
 
@@ -2734,6 +2921,7 @@ financeRouter.get(
         }),
         prisma.bankCard.findMany({
           where: { userId: req.user!.id, archivedAt: null },
+          select: { ...safeCardSelect, currency: true },
         }),
         prisma.zakatCalculation.findFirst({
           where: { userId: req.user!.id, archivedAt: null },
@@ -2775,7 +2963,9 @@ financeRouter.get(
           investments: investments.slice(0, 5),
           assets: linkedAssets.slice(0, 5),
           accounts: accounts.slice(0, 5),
-          cards: cards.slice(0, 5),
+          cards: cards
+            .slice(0, 5)
+            .map(({ currency: _currency, ...card }) => card),
         },
       },
     });
@@ -2804,10 +2994,13 @@ financeRouter.get(
     }[moduleName];
     const rows = await delegate.findMany({
       where: { userId: req.user!.id, archivedAt: null },
+      ...(moduleName === "cards" ? { select: safeCardSelect } : {}),
       orderBy: { createdAt: "desc" },
     });
     const headers = rows[0]
-      ? Object.keys(rows[0]).filter((key) => !["userId"].includes(key))
+      ? Object.keys(rows[0]).filter(
+          (key) => !["userId", "cardNumberEncrypted"].includes(key),
+        )
       : ["id"];
     const csv = [
       headers.map(csvSafe).join(","),

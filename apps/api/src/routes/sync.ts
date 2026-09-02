@@ -118,6 +118,15 @@ syncRouter.get(
         include: {
           cards: {
             where: { archivedAt: null },
+            select: {
+              id: true,
+              cardName: true,
+              cardNumberFirstFour: true,
+              cardNumberLastTwo: true,
+              pinnedAt: true,
+              createdAt: true,
+              updatedAt: true,
+            },
             orderBy: [{ pinnedAt: "desc" }, { updatedAt: "desc" }],
           },
         },
@@ -125,15 +134,14 @@ syncRouter.get(
       }),
       prisma.bankCard.findMany({
         where: { userId, archivedAt: null },
-        include: {
-          account: {
-            select: {
-              id: true,
-              accountName: true,
-              bankName: true,
-              currency: true,
-            },
-          },
+        select: {
+          id: true,
+          cardName: true,
+          cardNumberFirstFour: true,
+          cardNumberLastTwo: true,
+          pinnedAt: true,
+          createdAt: true,
+          updatedAt: true,
         },
         orderBy: [{ pinnedAt: "desc" }, { updatedAt: "desc" }],
       }),

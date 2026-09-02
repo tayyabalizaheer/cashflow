@@ -474,30 +474,33 @@ model BankAccount {
 }
 
 model BankCard {
-  id              String       @id @default(uuid())
-  userId          String
-  accountId       String?
-  cardName        String
-  cardholderName  String?
-  issuer          String?
-  network         String?
-  cardType        String       @default("Debit")
-  lastFour        String?
-  expiryMonth     Int?
-  expiryYear      Int?
-  currency        String
-  creditLimit     Decimal?     @db.Decimal(19, 4)
-  availableLimit  Decimal?     @db.Decimal(19, 4)
-  billingCycleDay Int?
-  paymentDueDay   Int?
-  status          String       @default("Active")
-  notes           String?      @db.Text
-  pinnedAt        DateTime?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  archivedAt      DateTime?
-  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account         BankAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  id                  String       @id @default(uuid())
+  userId              String
+  accountId           String?
+  cardName            String
+  cardholderName      String?
+  issuer              String?
+  network             String?
+  cardType            String       @default("Debit")
+  cardNumberEncrypted String?      @db.Text
+  cardNumberFirstFour String?
+  cardNumberLastTwo   String?
+  lastFour            String?
+  expiryMonth         Int?
+  expiryYear          Int?
+  currency            String
+  creditLimit         Decimal?     @db.Decimal(19, 4)
+  availableLimit      Decimal?     @db.Decimal(19, 4)
+  billingCycleDay     Int?
+  paymentDueDay       Int?
+  status              String       @default("Active")
+  notes               String?      @db.Text
+  pinnedAt            DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  archivedAt          DateTime?
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account             BankAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
   @@index([userId, pinnedAt])
   @@index([userId, accountId])

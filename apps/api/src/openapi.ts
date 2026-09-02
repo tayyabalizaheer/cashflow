@@ -105,6 +105,11 @@ export const openApiDocument = {
       put: { summary: "Update card" },
       delete: { summary: "Archive card" },
     },
+    "/cards/{cardId}/reveal": {
+      post: {
+        summary: "Reveal protected card details after password verification",
+      },
+    },
     "/exchange-rates": {
       get: { summary: "List exchange rates" },
       post: { summary: "Create exchange rate" },

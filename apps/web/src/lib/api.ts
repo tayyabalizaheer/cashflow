@@ -46,6 +46,7 @@ export async function api<T>(
   } = options;
   const method = options.method?.toUpperCase() ?? "GET";
   const canQueue =
+    !onlineOnly &&
     method !== "GET" &&
     !path.startsWith("/auth/") &&
     !path.startsWith("/sync/");
