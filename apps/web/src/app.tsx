@@ -5,7 +5,9 @@ import { AuthProvider, useAuth } from "./components/authprovider";
 import { AppUpdatePrompt } from "./components/appupdateprompt";
 import { Layout } from "./components/layout";
 import { ThemeProvider } from "./components/themeprovider";
+import { AccountsPage } from "./pages/accountspage";
 import { AuthPage } from "./pages/authpage";
+import { CardsPage } from "./pages/cardspage";
 import { CurrencySettingsPage } from "./pages/currencysettingspage";
 import { Dashboard } from "./pages/dashboard";
 import { ExpenseDetailPage } from "./pages/expensedetailpage";
@@ -50,6 +52,10 @@ function refreshedQueryKeys(path: string) {
     keys.push(["investments"], ["trash"]);
   } else if (pathOnly === "/assets" || pathOnly.startsWith("/assets/")) {
     keys.push(["assets"], ["trash"]);
+  } else if (pathOnly === "/accounts" || pathOnly.startsWith("/accounts/")) {
+    keys.push(["accounts"], ["cards"], ["trash"]);
+  } else if (pathOnly === "/cards" || pathOnly.startsWith("/cards/")) {
+    keys.push(["cards"], ["accounts"], ["trash"]);
   } else if (pathOnly === "/categories") {
     keys.push(["categories"]);
   } else if (pathOnly === "/user-currencies") {
@@ -57,7 +63,15 @@ function refreshedQueryKeys(path: string) {
   } else if (pathOnly === "/currencies") {
     keys.push(["currencies"]);
   } else if (pathOnly.startsWith("/trash/") || pathOnly === "/trash") {
-    keys.push(["trash"], ["expenses"], ["loans"], ["investments"], ["assets"]);
+    keys.push(
+      ["trash"],
+      ["expenses"],
+      ["loans"],
+      ["investments"],
+      ["assets"],
+      ["accounts"],
+      ["cards"],
+    );
   }
 
   return keys;
@@ -70,6 +84,8 @@ function allLocalQueryKeys() {
     ["loans"],
     ["investments"],
     ["assets"],
+    ["accounts"],
+    ["cards"],
     ["categories"],
     ["user-currencies"],
     ["currencies"],
@@ -198,6 +214,8 @@ export default function App() {
             />
             <Route path="stocks" element={<StocksPage />} />
             <Route path="assets" element={<RecordsPage module="assets" />} />
+            <Route path="accounts" element={<AccountsPage />} />
+            <Route path="cards" element={<CardsPage />} />
             <Route path="zakat" element={<ZakatPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="settings/profile" element={<ProfilePage />} />

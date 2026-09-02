@@ -277,6 +277,8 @@ function activeRecordsByModule(db: Database) {
     loans: readActiveModuleRecords(db, "loans"),
     investments: readActiveModuleRecords(db, "investments"),
     assets: readActiveModuleRecords(db, "assets"),
+    accounts: readActiveModuleRecords(db, "accounts"),
+    cards: readActiveModuleRecords(db, "cards"),
   };
 }
 
@@ -335,7 +337,12 @@ function localCurrencyCodes(db: Database) {
     }
   });
 
-  [...records.investments, ...records.assets].forEach((record) => {
+  [
+    ...records.investments,
+    ...records.assets,
+    ...records.accounts,
+    ...records.cards,
+  ].forEach((record) => {
     if (typeof record.currency === "string") codes.add(record.currency);
     if (typeof record.sourceCurrency === "string")
       codes.add(record.sourceCurrency);
@@ -417,6 +424,8 @@ function localDashboard(db: Database) {
       loans: records.loans.length,
       investments: records.investments.length,
       assets: records.assets.length,
+      accounts: records.accounts.length,
+      cards: records.cards.length,
     },
     latestZakat: null,
     recent: {
@@ -424,6 +433,8 @@ function localDashboard(db: Database) {
       loans: records.loans.slice(0, 5),
       investments: records.investments.slice(0, 5),
       assets: records.assets.slice(0, 5),
+      accounts: records.accounts.slice(0, 5),
+      cards: records.cards.slice(0, 5),
     },
   };
 }
@@ -451,6 +462,8 @@ function trashModuleForType(type: string) {
     expenses: "expenses",
     investments: "investments",
     assets: "assets",
+    accounts: "accounts",
+    cards: "cards",
   };
   return map[type];
 }
@@ -462,6 +475,8 @@ function trashLabelForType(type: string) {
     expenses: "Expense",
     investments: "Investment",
     assets: "Asset",
+    accounts: "Account",
+    cards: "Card",
   };
   return map[type] ?? "Record";
 }
@@ -473,11 +488,21 @@ function trashTitleForRecord(type: string, record: Record<string, unknown>) {
   if (type === "investments")
     return String(record.name ?? record.type ?? "Investment");
   if (type === "assets") return String(record.name ?? "Asset");
+  if (type === "accounts")
+    return String(record.accountName ?? record.bankName ?? "Account");
+  if (type === "cards") return String(record.cardName ?? "Card");
   return "Record";
 }
 
 function localTrashItems(db: Database) {
-  const types = ["loans", "expenses", "investments", "assets"];
+  const types = [
+    "loans",
+    "expenses",
+    "investments",
+    "assets",
+    "accounts",
+    "cards",
+  ];
   const cachedTrashItems = readModuleRecords(db, "trash")
     .map((record) => {
       const type = String(record.type ?? "");
@@ -749,6 +774,51 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
     return archivedInvestment;
   }
 
+  const accountDeleteMatch = mutation.path.match(/^\/accounts\/([^/]+)$/);
+  if (mutation.method === "DELETE" && accountDeleteMatch) {
+    const accountId = accountDeleteMatch[1]!;
+    const account = readModuleRecords(db, "accounts").find(
+      (item) => item.id === accountId,
+    );
+    if (account) {
+      const archivedAccount = { ...account, archivedAt: now, updatedAt: now };
+      upsertLocalRecord(db, "accounts", archivedAccount, now);
+      return archivedAccount;
+    }
+    const archivedAccount = {
+      id: accountId,
+      accountName: "Account",
+      bankName: "Bank",
+      archivedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    upsertLocalRecord(db, "accounts", archivedAccount, now);
+    return archivedAccount;
+  }
+
+  const cardDeleteMatch = mutation.path.match(/^\/cards\/([^/]+)$/);
+  if (mutation.method === "DELETE" && cardDeleteMatch) {
+    const cardId = cardDeleteMatch[1]!;
+    const card = readModuleRecords(db, "cards").find(
+      (item) => item.id === cardId,
+    );
+    if (card) {
+      const archivedCard = { ...card, archivedAt: now, updatedAt: now };
+      upsertLocalRecord(db, "cards", archivedCard, now);
+      return archivedCard;
+    }
+    const archivedCard = {
+      id: cardId,
+      cardName: "Card",
+      archivedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    upsertLocalRecord(db, "cards", archivedCard, now);
+    return archivedCard;
+  }
+
   const trashRestoreMatch = mutation.path.match(
     /^\/trash\/([^/]+)\/([^/]+)\/restore$/,
   );
@@ -952,6 +1022,7 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       quantity: payload.quantity ?? null,
       nav: payload.nav ?? null,
       currentValue: payload.currentValue ?? null,
+      tenure: payload.tenure ?? null,
       purchaseDate: payload.purchaseDate ?? null,
       latestValuationDate: payload.latestValuationDate ?? null,
       zakatEligible: Boolean(payload.zakatEligible),
@@ -963,6 +1034,75 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
     mutation.body = serialize({ ...payload, id: localInvestment.id });
     upsertLocalRecord(db, "investments", localInvestment, now);
     return localInvestment;
+  }
+
+  if (mutation.method === "POST" && mutation.path === "/accounts") {
+    const localAccount = {
+      id: typeof payload.id === "string" ? payload.id : crypto.randomUUID(),
+      accountName: String(payload.accountName ?? ""),
+      bankName: String(payload.bankName ?? ""),
+      accountHolderName: payload.accountHolderName ?? null,
+      accountNumber: payload.accountNumber ?? null,
+      iban: payload.iban ?? null,
+      swiftCode: payload.swiftCode ?? null,
+      routingNumber: payload.routingNumber ?? null,
+      branchName: payload.branchName ?? null,
+      branchAddress: payload.branchAddress ?? null,
+      accountType: String(payload.accountType ?? "Savings"),
+      currency: payload.currency,
+      openingBalance: payload.openingBalance ?? "0",
+      currentBalance: payload.currentBalance ?? null,
+      openedAt: payload.openedAt ?? null,
+      notes: payload.notes ?? null,
+      cards: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    mutation.body = serialize({ ...payload, id: localAccount.id });
+    upsertLocalRecord(db, "accounts", localAccount, now);
+    return localAccount;
+  }
+
+  if (mutation.method === "POST" && mutation.path === "/cards") {
+    const account =
+      typeof payload.accountId === "string"
+        ? readActiveModuleRecords(db, "accounts").find(
+            (item) => item.id === payload.accountId,
+          )
+        : null;
+    const localCard = {
+      id: typeof payload.id === "string" ? payload.id : crypto.randomUUID(),
+      accountId: payload.accountId ?? null,
+      cardName: String(payload.cardName ?? ""),
+      cardholderName: payload.cardholderName ?? null,
+      issuer: payload.issuer ?? null,
+      network: payload.network ?? null,
+      cardType: String(payload.cardType ?? "Debit"),
+      lastFour: payload.lastFour ?? null,
+      expiryMonth: payload.expiryMonth ?? null,
+      expiryYear: payload.expiryYear ?? null,
+      currency: payload.currency,
+      creditLimit: payload.creditLimit ?? null,
+      availableLimit: payload.availableLimit ?? null,
+      billingCycleDay: payload.billingCycleDay ?? null,
+      paymentDueDay: payload.paymentDueDay ?? null,
+      status: String(payload.status ?? "Active"),
+      pinnedAt: payload.pinnedAt ?? null,
+      notes: payload.notes ?? null,
+      account: account
+        ? {
+            id: account.id,
+            accountName: account.accountName,
+            bankName: account.bankName,
+            currency: account.currency,
+          }
+        : null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    mutation.body = serialize({ ...payload, id: localCard.id });
+    upsertLocalRecord(db, "cards", localCard, now);
+    return localCard;
   }
 
   const assetUpdateMatch = mutation.path.match(/^\/assets\/([^/]+)$/);
@@ -1032,6 +1172,9 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       currentValue: hasOwnRecordKey(payload, "currentValue")
         ? payload.currentValue
         : (existingInvestment?.currentValue ?? null),
+      tenure: hasOwnRecordKey(payload, "tenure")
+        ? payload.tenure
+        : (existingInvestment?.tenure ?? null),
       purchaseDate: hasOwnRecordKey(payload, "purchaseDate")
         ? payload.purchaseDate
         : (existingInvestment?.purchaseDate ?? null),
@@ -1051,6 +1194,147 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
     };
     upsertLocalRecord(db, "investments", localInvestment, now);
     return localInvestment;
+  }
+
+  const accountUpdateMatch = mutation.path.match(/^\/accounts\/([^/]+)$/);
+  if (mutation.method === "PUT" && accountUpdateMatch) {
+    const accountId = accountUpdateMatch[1]!;
+    const existingAccount = readModuleRecords(db, "accounts").find(
+      (item) => item.id === accountId,
+    );
+    const localAccount = {
+      ...(existingAccount ?? {}),
+      id: accountId,
+      accountName: String(
+        payload.accountName ?? existingAccount?.accountName ?? "",
+      ),
+      bankName: String(payload.bankName ?? existingAccount?.bankName ?? ""),
+      accountHolderName: hasOwnRecordKey(payload, "accountHolderName")
+        ? payload.accountHolderName
+        : (existingAccount?.accountHolderName ?? null),
+      accountNumber: hasOwnRecordKey(payload, "accountNumber")
+        ? payload.accountNumber
+        : (existingAccount?.accountNumber ?? null),
+      iban: hasOwnRecordKey(payload, "iban")
+        ? payload.iban
+        : (existingAccount?.iban ?? null),
+      swiftCode: hasOwnRecordKey(payload, "swiftCode")
+        ? payload.swiftCode
+        : (existingAccount?.swiftCode ?? null),
+      routingNumber: hasOwnRecordKey(payload, "routingNumber")
+        ? payload.routingNumber
+        : (existingAccount?.routingNumber ?? null),
+      branchName: hasOwnRecordKey(payload, "branchName")
+        ? payload.branchName
+        : (existingAccount?.branchName ?? null),
+      branchAddress: hasOwnRecordKey(payload, "branchAddress")
+        ? payload.branchAddress
+        : (existingAccount?.branchAddress ?? null),
+      accountType: String(
+        payload.accountType ?? existingAccount?.accountType ?? "Savings",
+      ),
+      currency: payload.currency ?? existingAccount?.currency,
+      openingBalance:
+        payload.openingBalance ?? existingAccount?.openingBalance ?? "0",
+      currentBalance: hasOwnRecordKey(payload, "currentBalance")
+        ? payload.currentBalance
+        : (existingAccount?.currentBalance ?? null),
+      openedAt: hasOwnRecordKey(payload, "openedAt")
+        ? payload.openedAt
+        : (existingAccount?.openedAt ?? null),
+      notes: hasOwnRecordKey(payload, "notes")
+        ? payload.notes
+        : (existingAccount?.notes ?? null),
+      cards: existingAccount?.cards ?? [],
+      updatedAt: now,
+      createdAt: existingAccount?.createdAt ?? now,
+    };
+    upsertLocalRecord(db, "accounts", localAccount, now);
+    return localAccount;
+  }
+
+  const cardUpdateMatch = mutation.path.match(/^\/cards\/([^/]+)$/);
+  if (mutation.method === "PUT" && cardUpdateMatch) {
+    const cardId = cardUpdateMatch[1]!;
+    const existingCard = readModuleRecords(db, "cards").find(
+      (item) => item.id === cardId,
+    );
+    const hasPinnedAtUpdate = hasOwnRecordKey(payload, "pinnedAt");
+    const pinOnlyUpdate =
+      hasPinnedAtUpdate &&
+      Object.keys(payload).every((key) =>
+        ["id", "accountId", "cardName", "currency", "pinnedAt"].includes(key),
+      ) &&
+      payload.cardName === existingCard?.cardName &&
+      payload.currency === existingCard?.currency;
+    const nextUpdatedAt = pinOnlyUpdate
+      ? String(existingCard?.updatedAt ?? now)
+      : now;
+    const account =
+      typeof payload.accountId === "string"
+        ? readActiveModuleRecords(db, "accounts").find(
+            (item) => item.id === payload.accountId,
+          )
+        : null;
+    const localCard = {
+      ...(existingCard ?? {}),
+      id: cardId,
+      accountId: hasOwnRecordKey(payload, "accountId")
+        ? payload.accountId
+        : (existingCard?.accountId ?? null),
+      cardName: String(payload.cardName ?? existingCard?.cardName ?? ""),
+      cardholderName: hasOwnRecordKey(payload, "cardholderName")
+        ? payload.cardholderName
+        : (existingCard?.cardholderName ?? null),
+      issuer: hasOwnRecordKey(payload, "issuer")
+        ? payload.issuer
+        : (existingCard?.issuer ?? null),
+      network: hasOwnRecordKey(payload, "network")
+        ? payload.network
+        : (existingCard?.network ?? null),
+      cardType: String(payload.cardType ?? existingCard?.cardType ?? "Debit"),
+      lastFour: hasOwnRecordKey(payload, "lastFour")
+        ? payload.lastFour
+        : (existingCard?.lastFour ?? null),
+      expiryMonth: hasOwnRecordKey(payload, "expiryMonth")
+        ? payload.expiryMonth
+        : (existingCard?.expiryMonth ?? null),
+      expiryYear: hasOwnRecordKey(payload, "expiryYear")
+        ? payload.expiryYear
+        : (existingCard?.expiryYear ?? null),
+      currency: payload.currency ?? existingCard?.currency,
+      creditLimit: hasOwnRecordKey(payload, "creditLimit")
+        ? payload.creditLimit
+        : (existingCard?.creditLimit ?? null),
+      availableLimit: hasOwnRecordKey(payload, "availableLimit")
+        ? payload.availableLimit
+        : (existingCard?.availableLimit ?? null),
+      billingCycleDay: hasOwnRecordKey(payload, "billingCycleDay")
+        ? payload.billingCycleDay
+        : (existingCard?.billingCycleDay ?? null),
+      paymentDueDay: hasOwnRecordKey(payload, "paymentDueDay")
+        ? payload.paymentDueDay
+        : (existingCard?.paymentDueDay ?? null),
+      status: String(payload.status ?? existingCard?.status ?? "Active"),
+      ...(hasPinnedAtUpdate ? { pinnedAt: payload.pinnedAt ?? null } : {}),
+      notes: hasOwnRecordKey(payload, "notes")
+        ? payload.notes
+        : (existingCard?.notes ?? null),
+      account: account
+        ? {
+            id: account.id,
+            accountName: account.accountName,
+            bankName: account.bankName,
+            currency: account.currency,
+          }
+        : hasOwnRecordKey(payload, "accountId")
+          ? null
+          : (existingCard?.account ?? null),
+      updatedAt: nextUpdatedAt,
+      createdAt: existingCard?.createdAt ?? now,
+    };
+    upsertLocalRecord(db, "cards", localCard, nextUpdatedAt);
+    return localCard;
   }
 
   const loanUpdateMatch = mutation.path.match(/^\/loans\/([^/]+)$/);
@@ -1517,6 +1801,8 @@ export async function bootstrapLocalData(
     ["loans", body.data.loans],
     ["investments", body.data.investments],
     ["assets", body.data.assets],
+    ["accounts", body.data.accounts],
+    ["cards", body.data.cards],
   ] as const;
 
   db.run("BEGIN TRANSACTION");
@@ -1625,7 +1911,16 @@ function upsertServerRecords(
     upsertLocalRecord(db, module, record, syncedAt);
   });
 
-  if (["expenses", "loans", "investments", "assets"].includes(module)) {
+  if (
+    [
+      "expenses",
+      "loans",
+      "investments",
+      "assets",
+      "accounts",
+      "cards",
+    ].includes(module)
+  ) {
     insertAttachments(
       db,
       collectBootstrapAttachments(module, records),
@@ -1657,6 +1952,8 @@ export async function storeServerResponseForPath(
     "/loans": "loans",
     "/investments": "investments",
     "/assets": "assets",
+    "/accounts": "accounts",
+    "/cards": "cards",
     "/categories": "categories",
     "/user-currencies": "user-currencies",
     "/currencies": "currencies",
@@ -1700,6 +1997,8 @@ export async function storeServerResponseForPath(
     "/loans": "loans",
     "/investments": "investments",
     "/assets": "assets",
+    "/accounts": "accounts",
+    "/cards": "cards",
   };
   const createModule = createModuleMap[pathOnly];
   const detailModule = createModule
@@ -1710,11 +2009,15 @@ export async function storeServerResponseForPath(
         ? "investments"
         : pathOnly.match(/^\/assets\/[^/]+$/)
           ? "assets"
-          : pathOnly.match(/^\/loans\/[^/]+$/) ||
-              pathOnly.match(/^\/loans\/share\/[^/]+$/) ||
-              pathOnly.match(/^\/public\/loans\/[^/]+$/)
-            ? "loans"
-            : null;
+          : pathOnly.match(/^\/accounts\/[^/]+$/)
+            ? "accounts"
+            : pathOnly.match(/^\/cards\/[^/]+$/)
+              ? "cards"
+              : pathOnly.match(/^\/loans\/[^/]+$/) ||
+                  pathOnly.match(/^\/loans\/share\/[^/]+$/) ||
+                  pathOnly.match(/^\/public\/loans\/[^/]+$/)
+                ? "loans"
+                : null;
   const record = responseRecord(responseBody);
 
   if (detailModule && record) {
@@ -1802,6 +2105,26 @@ export async function updateLocalLoan(
   return updatedLoan;
 }
 
+export async function updateLocalCard(
+  cardId: string,
+  patch: Record<string, unknown>,
+) {
+  const db = await getLocalDatabase();
+  const card = readModuleRecords(db, "cards").find(
+    (item) => item.id === cardId,
+  );
+  if (!card) return null;
+
+  const updatedAt =
+    typeof patch.updatedAt === "string"
+      ? patch.updatedAt
+      : String(card.updatedAt ?? new Date().toISOString());
+  const updatedCard = { ...card, ...patch, updatedAt };
+  upsertLocalRecord(db, "cards", updatedCard, updatedAt);
+  await persistDatabase(db);
+  return updatedCard;
+}
+
 export async function localResponseForPath(path: string) {
   const db = await getLocalDatabase();
   const pathOnly = path.split("?")[0] ?? path;
@@ -1869,6 +2192,8 @@ export async function localResponseForPath(path: string) {
     "/expenses": "expenses",
     "/investments": "investments",
     "/assets": "assets",
+    "/accounts": "accounts",
+    "/cards": "cards",
   };
   const module = moduleMap[pathOnly];
   if (module) return { data: readActiveModuleRecords(db, module) };

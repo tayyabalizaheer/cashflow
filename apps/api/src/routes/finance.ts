@@ -33,6 +33,9 @@ const nonNegativeDecimal = z
   .refine((value) => Number(value) >= 0, {
     message: "Amount cannot be negative",
   });
+const nullableNonNegativeDecimal = z
+  .union([nonNegativeDecimal, z.null()])
+  .optional();
 const listQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
@@ -1371,6 +1374,7 @@ const investmentSchema = z.object({
   quantity: nonNegativeDecimal.optional(),
   nav: nonNegativeDecimal.optional(),
   currentValue: nonNegativeDecimal.optional(),
+  tenure: z.string().trim().max(80).nullable().optional(),
   purchaseDate: z.coerce.date().optional(),
   latestValuationDate: z.coerce.date().optional(),
   notes: z.string().max(1000).optional(),
@@ -2028,6 +2032,231 @@ financeRouter.delete(
   }),
 );
 
+const accountSchema = z.object({
+  id: z.string().uuid().optional(),
+  accountName: z.string().trim().min(1).max(120),
+  bankName: z.string().trim().min(1).max(120),
+  accountHolderName: z.string().trim().max(120).nullable().optional(),
+  accountNumber: z.string().trim().max(80).nullable().optional(),
+  iban: z.string().trim().max(80).nullable().optional(),
+  swiftCode: z.string().trim().max(40).nullable().optional(),
+  routingNumber: z.string().trim().max(40).nullable().optional(),
+  branchName: z.string().trim().max(120).nullable().optional(),
+  branchAddress: z.string().trim().max(240).nullable().optional(),
+  accountType: z.string().trim().min(2).max(80).default("Savings"),
+  currency,
+  openingBalance: nonNegativeDecimal.default(0),
+  currentBalance: nullableNonNegativeDecimal,
+  openedAt: z.coerce.date().nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+});
+
+const accountInclude = {
+  cards: {
+    where: { archivedAt: null },
+    orderBy: [{ pinnedAt: "desc" as const }, { updatedAt: "desc" as const }],
+  },
+};
+
+financeRouter.get(
+  "/accounts",
+  asyncHandler(async (req, res) => {
+    const {
+      skip,
+      take,
+      page,
+      pageSize,
+      search,
+      currency: requestedCurrency,
+    } = pagination(req.query);
+    const where = {
+      userId: req.user!.id,
+      archivedAt: null,
+      ...(requestedCurrency ? { currency: requestedCurrency } : {}),
+      ...(search
+        ? {
+            OR: [
+              {
+                accountName: { contains: search, mode: "insensitive" as const },
+              },
+              { bankName: { contains: search, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
+    const [items, total] = await Promise.all([
+      prisma.bankAccount.findMany({
+        where,
+        skip,
+        take,
+        include: accountInclude,
+        orderBy: [{ updatedAt: "desc" }],
+      }),
+      prisma.bankAccount.count({ where }),
+    ]);
+    return res.json({ data: items, meta: { page, pageSize, total } });
+  }),
+);
+
+financeRouter.post(
+  "/accounts",
+  asyncHandler(async (req, res) => {
+    const input = accountSchema.parse(req.body);
+    await ensureUserCurrencies(req.user!.id, [input.currency]);
+    if (input.id) {
+      const existing = await prisma.bankAccount.findFirst({
+        where: { id: input.id, userId: req.user!.id, archivedAt: null },
+        include: accountInclude,
+      });
+      if (existing) return res.status(200).json({ data: existing });
+    }
+    const item = await prisma.bankAccount.create({
+      data: { ...input, userId: req.user!.id },
+      include: accountInclude,
+    });
+    return res.status(201).json({ data: item });
+  }),
+);
+
+financeRouter.put(
+  "/accounts/:id",
+  asyncHandler(async (req, res) => {
+    const input = accountSchema.parse(req.body);
+    const id = paramUuid(req.params.id);
+    await ensureUserCurrencies(req.user!.id, [input.currency]);
+    const item = await prisma.bankAccount.update({
+      where: { id, userId: req.user!.id },
+      data: { ...input, id: undefined },
+      include: accountInclude,
+    });
+    return res.json({ data: item });
+  }),
+);
+
+financeRouter.delete("/accounts/:id", archiveRoute(prisma.bankAccount));
+
+const cardSchema = z.object({
+  id: z.string().uuid().optional(),
+  accountId: z.string().uuid().nullable().optional(),
+  cardName: z.string().trim().min(1).max(120),
+  cardholderName: z.string().trim().max(120).nullable().optional(),
+  issuer: z.string().trim().max(120).nullable().optional(),
+  network: z.string().trim().max(40).nullable().optional(),
+  cardType: z.string().trim().min(2).max(60).default("Debit"),
+  lastFour: z
+    .string()
+    .regex(/^\d{4}$/)
+    .nullable()
+    .optional(),
+  expiryMonth: z.coerce.number().int().min(1).max(12).nullable().optional(),
+  expiryYear: z.coerce.number().int().min(2000).max(2100).nullable().optional(),
+  currency,
+  creditLimit: nullableNonNegativeDecimal,
+  availableLimit: nullableNonNegativeDecimal,
+  billingCycleDay: z.coerce.number().int().min(1).max(31).nullable().optional(),
+  paymentDueDay: z.coerce.number().int().min(1).max(31).nullable().optional(),
+  status: z.string().trim().min(2).max(40).default("Active"),
+  pinnedAt: z.coerce.date().nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+});
+
+const cardInclude = {
+  account: {
+    select: {
+      id: true,
+      accountName: true,
+      bankName: true,
+      currency: true,
+    },
+  },
+};
+
+async function ensureCardAccount(userId: string, accountId?: string | null) {
+  if (!accountId) return;
+  const account = await prisma.bankAccount.findFirst({
+    where: { id: accountId, userId, archivedAt: null },
+  });
+  if (!account) throw notFound("Account not found");
+}
+
+financeRouter.get(
+  "/cards",
+  asyncHandler(async (req, res) => {
+    const {
+      skip,
+      take,
+      page,
+      pageSize,
+      search,
+      currency: requestedCurrency,
+    } = pagination(req.query);
+    const where = {
+      userId: req.user!.id,
+      archivedAt: null,
+      ...(requestedCurrency ? { currency: requestedCurrency } : {}),
+      ...(search
+        ? {
+            OR: [
+              { cardName: { contains: search, mode: "insensitive" as const } },
+              { issuer: { contains: search, mode: "insensitive" as const } },
+              { network: { contains: search, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
+    const [items, total] = await Promise.all([
+      prisma.bankCard.findMany({
+        where,
+        skip,
+        take,
+        include: cardInclude,
+        orderBy: [{ pinnedAt: "desc" }, { updatedAt: "desc" }],
+      }),
+      prisma.bankCard.count({ where }),
+    ]);
+    return res.json({ data: items, meta: { page, pageSize, total } });
+  }),
+);
+
+financeRouter.post(
+  "/cards",
+  asyncHandler(async (req, res) => {
+    const input = cardSchema.parse(req.body);
+    await ensureUserCurrencies(req.user!.id, [input.currency]);
+    await ensureCardAccount(req.user!.id, input.accountId);
+    if (input.id) {
+      const existing = await prisma.bankCard.findFirst({
+        where: { id: input.id, userId: req.user!.id, archivedAt: null },
+        include: cardInclude,
+      });
+      if (existing) return res.status(200).json({ data: existing });
+    }
+    const item = await prisma.bankCard.create({
+      data: { ...input, userId: req.user!.id },
+      include: cardInclude,
+    });
+    return res.status(201).json({ data: item });
+  }),
+);
+
+financeRouter.put(
+  "/cards/:id",
+  asyncHandler(async (req, res) => {
+    const input = cardSchema.parse(req.body);
+    const id = paramUuid(req.params.id);
+    await ensureUserCurrencies(req.user!.id, [input.currency]);
+    await ensureCardAccount(req.user!.id, input.accountId);
+    const item = await prisma.bankCard.update({
+      where: { id, userId: req.user!.id },
+      data: { ...input, id: undefined },
+      include: cardInclude,
+    });
+    return res.json({ data: item });
+  }),
+);
+
+financeRouter.delete("/cards/:id", archiveRoute(prisma.bankCard));
+
 for (const [path, delegate, schema, orderBy] of [
   [
     "/exchange-rates",
@@ -2184,6 +2413,8 @@ const trashType = z.enum([
   "expense-transactions",
   "investments",
   "assets",
+  "accounts",
+  "cards",
   "categories",
   "zakat-calculations",
 ]);
@@ -2220,6 +2451,16 @@ const trashConfig: Record<
     label: "Asset",
     delegate: prisma.asset,
     title: (item) => item.name,
+  },
+  accounts: {
+    label: "Account",
+    delegate: prisma.bankAccount,
+    title: (item) => `${item.accountName} - ${item.bankName}`,
+  },
+  cards: {
+    label: "Card",
+    delegate: prisma.bankCard,
+    title: (item) => item.cardName,
   },
   categories: {
     label: "Category",
@@ -2283,6 +2524,8 @@ financeRouter.get(
       expenseTransactions,
       investments,
       assets,
+      accounts,
+      cards,
       categories,
       zakatCalculations,
     ] = await Promise.all([
@@ -2322,6 +2565,16 @@ financeRouter.get(
         orderBy: { archivedAt: "desc" },
         take: 100,
       }),
+      prisma.bankAccount.findMany({
+        where: { userId, archivedAt: { not: null } },
+        orderBy: { archivedAt: "desc" },
+        take: 100,
+      }),
+      prisma.bankCard.findMany({
+        where: { userId, archivedAt: { not: null } },
+        orderBy: { archivedAt: "desc" },
+        take: 100,
+      }),
       prisma.expenseCategory.findMany({
         where: { userId, archivedAt: { not: null } },
         orderBy: { archivedAt: "desc" },
@@ -2343,6 +2596,8 @@ financeRouter.get(
       ),
       ...investments.map((item) => trashItem("investments", item)),
       ...assets.map((item) => trashItem("assets", item)),
+      ...accounts.map((item) => trashItem("accounts", item)),
+      ...cards.map((item) => trashItem("cards", item)),
       ...categories.map((item) => trashItem("categories", item)),
       ...zakatCalculations.map((item) => trashItem("zakat-calculations", item)),
     ].sort(
@@ -2459,7 +2714,7 @@ financeRouter.get(
     const profile = await prisma.userPreference.findUnique({
       where: { userId: req.user!.id },
     });
-    const [expenses, loans, investments, assets, latestZakat] =
+    const [expenses, loans, investments, assets, accounts, cards, latestZakat] =
       await Promise.all([
         prisma.expense.findMany({
           where: { userId: req.user!.id, archivedAt: null },
@@ -2472,6 +2727,12 @@ financeRouter.get(
           where: { userId: req.user!.id, archivedAt: null },
         }),
         prisma.asset.findMany({
+          where: { userId: req.user!.id, archivedAt: null },
+        }),
+        prisma.bankAccount.findMany({
+          where: { userId: req.user!.id, archivedAt: null },
+        }),
+        prisma.bankCard.findMany({
           where: { userId: req.user!.id, archivedAt: null },
         }),
         prisma.zakatCalculation.findFirst({
@@ -2488,6 +2749,8 @@ financeRouter.get(
         ...loans.map((item: { currency: string }) => item.currency),
         ...investments.map((item: { currency: string }) => item.currency),
         ...linkedAssets.map((item: { currency: string }) => item.currency),
+        ...accounts.map((item: { currency: string }) => item.currency),
+        ...cards.map((item: { currency: string }) => item.currency),
       ]).size > 1;
 
     return res.json({
@@ -2502,6 +2765,8 @@ financeRouter.get(
           loans: loans.length,
           investments: investments.length,
           assets: assetCount,
+          accounts: accounts.length,
+          cards: cards.length,
         },
         latestZakat,
         recent: {
@@ -2509,6 +2774,8 @@ financeRouter.get(
           loans: loans.slice(0, 5),
           investments: investments.slice(0, 5),
           assets: linkedAssets.slice(0, 5),
+          accounts: accounts.slice(0, 5),
+          cards: cards.slice(0, 5),
         },
       },
     });
@@ -2525,13 +2792,15 @@ financeRouter.get(
   "/exports/:module.csv",
   asyncHandler(async (req, res) => {
     const moduleName = z
-      .enum(["expenses", "loans", "investments", "assets"])
+      .enum(["expenses", "loans", "investments", "assets", "accounts", "cards"])
       .parse(req.params.module);
     const delegate: any = {
       expenses: prisma.expense,
       loans: prisma.loan,
       investments: prisma.investment,
       assets: prisma.asset,
+      accounts: prisma.bankAccount,
+      cards: prisma.bankCard,
     }[moduleName];
     const rows = await delegate.findMany({
       where: { userId: req.user!.id, archivedAt: null },

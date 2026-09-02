@@ -1,0 +1,1 @@
+ALTER TABLE `Investment` ADD COLUMN `tenure` VARCHAR(191) NULL;

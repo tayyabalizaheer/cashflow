@@ -68,6 +68,16 @@ syncRouter.get(
         "assets",
         await prisma.asset.count({ where: { userId, archivedAt: null } }),
       ],
+      [
+        "accounts",
+        await prisma.bankAccount.count({
+          where: { userId, archivedAt: null },
+        }),
+      ],
+      [
+        "cards",
+        await prisma.bankCard.count({ where: { userId, archivedAt: null } }),
+      ],
     ].map(([module, count]) => ({ module, count: Number(count) }));
 
     return res.json({
@@ -83,7 +93,7 @@ syncRouter.get(
   "/bootstrap",
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
-    const [loans, investments, assets] = await Promise.all([
+    const [loans, investments, assets, accounts, cards] = await Promise.all([
       prisma.loan.findMany({
         where: { userId, archivedAt: null },
         include: {
@@ -102,6 +112,30 @@ syncRouter.get(
       prisma.asset.findMany({
         where: { userId, archivedAt: null },
         orderBy: { updatedAt: "desc" },
+      }),
+      prisma.bankAccount.findMany({
+        where: { userId, archivedAt: null },
+        include: {
+          cards: {
+            where: { archivedAt: null },
+            orderBy: [{ pinnedAt: "desc" }, { updatedAt: "desc" }],
+          },
+        },
+        orderBy: { updatedAt: "desc" },
+      }),
+      prisma.bankCard.findMany({
+        where: { userId, archivedAt: null },
+        include: {
+          account: {
+            select: {
+              id: true,
+              accountName: true,
+              bankName: true,
+              currency: true,
+            },
+          },
+        },
+        orderBy: [{ pinnedAt: "desc" }, { updatedAt: "desc" }],
       }),
     ]);
     const expenses = await prisma.expense.findMany({
@@ -195,6 +229,8 @@ syncRouter.get(
         loans: loansWithAttachments,
         investments,
         assets: linkedAssets,
+        accounts,
+        cards,
         fetchedAt: new Date().toISOString(),
       },
     });

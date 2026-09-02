@@ -4,6 +4,8 @@ import {
   Calculator,
   ChartPie,
   CircleDollarSign,
+  CreditCard,
+  Landmark,
   MoreHorizontal,
   Settings,
   TrendingUp,
@@ -23,6 +25,8 @@ const items = [
   { to: "/investments", label: "Invest", icon: CircleDollarSign },
   { to: "/stocks", label: "Stocks", icon: TrendingUp },
   { to: "/assets", label: "Assets", icon: Building2 },
+  { to: "/accounts", label: "Accounts", icon: Landmark },
+  { to: "/cards", label: "Cards", icon: CreditCard },
   { to: "/zakat", label: "Zakat", icon: Calculator },
   { to: "/settings", label: "Settings", icon: Settings },
 ];

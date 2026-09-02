@@ -420,7 +420,7 @@ textarea[aria-invalid="true"] {
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 14px;
 }
 
@@ -1192,6 +1192,74 @@ th {
 
 .investment-transaction-row strong {
   text-align: right;
+}
+
+.money-record-list {
+  display: grid;
+  gap: 10px;
+}
+
+.money-record-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 14px 38px rgba(23, 35, 34, 0.08);
+}
+
+.money-record-card.pinned {
+  border-color: rgba(244, 201, 93, 0.62);
+}
+
+.money-record-main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.7fr);
+  gap: 14px;
+  align-items: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.money-record-title {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.money-record-title svg {
+  color: var(--teal);
+}
+
+.money-record-title strong {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+
+.money-record-title span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+
+.money-record-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
 }
 
 .expense-list {
@@ -2771,6 +2839,8 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
   .asset-total-strip,
   .asset-card,
   .asset-card-main,
+  .money-record-card,
+  .money-record-main,
   .investment-card-main,
   .investment-group-summary,
   .expense-card-row,
@@ -2817,6 +2887,23 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
   }
 
   .investment-card .row-menu-wrap {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    justify-self: end;
+  }
+
+  .money-record-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .money-record-main {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .money-record-card .row-menu-wrap {
     grid-column: 2;
     grid-row: 1;
     align-self: start;

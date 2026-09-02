@@ -77,6 +77,7 @@ type RecordItem = {
   currentUnitPrice?: string | null;
   currentPriceSource?: string | null;
   currentPriceDate?: string | null;
+  tenure?: string | null;
   purchaseDate?: string | null;
   latestValuationDate?: string | null;
   notes?: string | null;
@@ -153,6 +154,7 @@ type InvestmentFormState = {
   quantity: string;
   nav: string;
   currentValue: string;
+  tenure: string;
   purchaseDate: string;
   zakatEligible: boolean;
   notes: string;
@@ -460,7 +462,9 @@ function investmentGroups(investments: RecordItem[]) {
           currentValue: 0,
         };
         currentTotal.cost += Number(transaction.amountInvested ?? 0);
-        currentTotal.currentValue += Number(investmentCurrentValue(transaction));
+        currentTotal.currentValue += Number(
+          investmentCurrentValue(transaction),
+        );
         totalsByCurrency.set(currencyCode, currentTotal);
 
         const quantity = Number(transaction.quantity);
@@ -796,6 +800,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     quantity: "",
     nav: "",
     currentValue: "",
+    tenure: "",
     purchaseDate: todayInputValue(),
     zakatEligible: false,
     notes: "",
@@ -912,6 +917,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
         stockFundName: "",
         amountInvested: "",
         quantity: "",
+        tenure: "",
         nav: "",
         currentValue: "",
         purchaseDate: todayInputValue(),
@@ -1194,6 +1200,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       quantity: investmentForm.quantity || undefined,
       nav: investmentForm.nav || undefined,
       currentValue: investmentForm.currentValue || undefined,
+      tenure: investmentForm.tenure.trim() || null,
       purchaseDate: investmentForm.purchaseDate || undefined,
       latestValuationDate: investmentForm.purchaseDate || undefined,
       notes: investmentForm.notes || undefined,
@@ -1312,6 +1319,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       stockFundName: "",
       amountInvested: "",
       quantity: "",
+      tenure: "",
       nav: "",
       currentValue: "",
       purchaseDate: todayInputValue(),
@@ -1334,6 +1342,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       quantity: String(investment.quantity ?? ""),
       nav: String(investment.nav ?? ""),
       currentValue: String(investment.currentValue ?? ""),
+      tenure: investment.tenure ?? "",
       purchaseDate: dateInputValue(
         investment.latestValuationDate ?? investment.purchaseDate,
       ),
@@ -1950,6 +1959,16 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                   </label>
                 </div>
                 <label>
+                  Tenure
+                  <input
+                    value={investmentForm.tenure}
+                    onChange={(event) =>
+                      updateInvestmentForm("tenure", event.target.value)
+                    }
+                    placeholder="6 months, 3 years, until maturity"
+                  />
+                </label>
+                <label>
                   Notes
                   <textarea
                     value={investmentForm.notes}
@@ -2111,6 +2130,10 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                         investmentDetail.purchaseDate,
                     )}
                   </dd>
+                </div>
+                <div>
+                  <dt>Tenure</dt>
+                  <dd>{investmentDetail.tenure || "-"}</dd>
                 </div>
                 <div>
                   <dt>Zakatable</dt>

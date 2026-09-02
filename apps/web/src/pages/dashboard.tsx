@@ -14,10 +14,17 @@ type DashboardResponse = {
 };
 
 export function Dashboard() {
-  const chartColors = ["#0f5f5c", "#f4c95d", "#5b6f95", "#b1465a"];
+  const chartColors = [
+    "#0f5f5c",
+    "#f4c95d",
+    "#5b6f95",
+    "#b1465a",
+    "#5c7f67",
+    "#8b6f47",
+  ];
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard"],
-    queryFn: () => api<DashboardResponse>("/dashboard")
+    queryFn: () => api<DashboardResponse>("/dashboard"),
   });
   const dashboard = data?.data;
   const chartData = dashboard
@@ -37,21 +44,57 @@ export function Dashboard() {
             <option value="90">Last 90 days</option>
             <option value="365">This year</option>
           </select>
-          <select aria-label="Currency" defaultValue={dashboard?.baseCurrency ?? "USD"}>
+          <select
+            aria-label="Currency"
+            defaultValue={dashboard?.baseCurrency ?? "USD"}
+          >
             <option>{dashboard?.baseCurrency ?? "USD"}</option>
           </select>
         </div>
       </header>
-      {error ? <div className="form-error">Dashboard could not load. Check the API connection.</div> : null}
+      {error ? (
+        <div className="form-error">
+          Dashboard could not load. Check the API connection.
+        </div>
+      ) : null}
       <div className="stat-grid">
-        <StatCard label="Expenses" value={String(dashboard?.counts.expenses ?? 0)} note="Records in scope" />
-        <StatCard label="Loans" value={String(dashboard?.counts.loans ?? 0)} tone="warn" note="Receivable and payable" />
-        <StatCard label="Investments" value={String(dashboard?.counts.investments ?? 0)} tone="good" note="NAV-aware" />
+        <StatCard
+          label="Expenses"
+          value={String(dashboard?.counts.expenses ?? 0)}
+          note="Records in scope"
+        />
+        <StatCard
+          label="Loans"
+          value={String(dashboard?.counts.loans ?? 0)}
+          tone="warn"
+          note="Receivable and payable"
+        />
+        <StatCard
+          label="Investments"
+          value={String(dashboard?.counts.investments ?? 0)}
+          tone="good"
+          note="NAV-aware"
+        />
+        <StatCard
+          label="Accounts"
+          value={String(dashboard?.counts.accounts ?? 0)}
+          tone="neutral"
+          note="Bank details"
+        />
+        <StatCard
+          label="Cards"
+          value={String(dashboard?.counts.cards ?? 0)}
+          tone="warn"
+          note="Pinned first"
+        />
         <StatCard
           label="Estimated Zakat"
           value={
             dashboard?.latestZakat
-              ? formatCurrency(dashboard.latestZakat.estimatedZakatDue, dashboard.latestZakat.currency)
+              ? formatCurrency(
+                  dashboard.latestZakat.estimatedZakatDue,
+                  dashboard.latestZakat.currency,
+                )
               : "Not calculated"
           }
           tone="neutral"
@@ -61,14 +104,28 @@ export function Dashboard() {
       <section className="work-surface">
         <div>
           <h2>Record mix</h2>
-          <p>{isLoading ? "Loading records..." : dashboard?.currencyNote ?? "Sign in to load your records."}</p>
+          <p>
+            {isLoading
+              ? "Loading records..."
+              : (dashboard?.currencyNote ?? "Sign in to load your records.")}
+          </p>
         </div>
         <div className="chart-box" aria-label="Financial record mix chart">
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>
-              <Pie data={chartData} dataKey="value" nameKey="name" innerRadius={58} outerRadius={92} paddingAngle={3}>
+              <Pie
+                data={chartData}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={58}
+                outerRadius={92}
+                paddingAngle={3}
+              >
                 {chartData.map((entry, index) => (
-                  <Cell key={entry.name} fill={chartColors[index % chartColors.length] ?? "#0f5f5c"} />
+                  <Cell
+                    key={entry.name}
+                    fill={chartColors[index % chartColors.length] ?? "#0f5f5c"}
+                  />
                 ))}
               </Pie>
               <Legend />
