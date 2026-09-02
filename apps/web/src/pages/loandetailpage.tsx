@@ -768,9 +768,7 @@ export function LoanDetailPage() {
                     ) : null}
                   </div>
                 )}
-                <time>
-                  {formatAppDate(transaction.transactionDate)}
-                </time>
+                <time>{formatAppDate(transaction.transactionDate)}</time>
               </div>
             </div>
           );
@@ -1087,7 +1085,7 @@ export function LoanDetailPage() {
               </label>
               <label>
                 Notes
-                <input
+                <textarea
                   value={form.notes}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -1095,6 +1093,7 @@ export function LoanDetailPage() {
                       notes: event.target.value,
                     }))
                   }
+                  rows={4}
                 />
               </label>
               <label className="file-input">
@@ -1247,7 +1246,7 @@ export function LoanDetailPage() {
               </label>
               <label>
                 Notes
-                <input
+                <textarea
                   value={editForm.notes}
                   onChange={(event) =>
                     setEditForm((current) => ({
@@ -1255,6 +1254,7 @@ export function LoanDetailPage() {
                       notes: event.target.value,
                     }))
                   }
+                  rows={4}
                 />
               </label>
               <label className="file-input">

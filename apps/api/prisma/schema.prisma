@@ -159,7 +159,7 @@ model Expense {
   amount        Decimal              @db.Decimal(19, 4)
   currency      String
   expenseDate   DateTime             @default(now())
-  notes         String?
+  notes         String?              @db.LongText
   paymentMethod String?
   recurring     Boolean              @default(false)
   frequency     String?
@@ -220,7 +220,7 @@ model ExpenseTransaction {
   transactionDate DateTime                   @default(now())
   mainCurrency    String
   mainAmount      Decimal                    @db.Decimal(19, 4)
-  notes           String?
+  notes           String?                    @db.LongText
   images          Json?
   createdAt       DateTime                   @default(now())
   updatedAt       DateTime                   @updatedAt
@@ -282,7 +282,7 @@ model Loan {
   loanDate     DateTime          @default(now())
   dueDate      DateTime?
   status       String            @default("ACTIVE")
-  notes        String?
+  notes        String?           @db.LongText
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   pinnedAt     DateTime?
@@ -307,7 +307,7 @@ model LoanTransaction {
   amount          Decimal   @db.Decimal(19, 4)
   currency        String
   transactionDate DateTime  @default(now())
-  notes           String?
+  notes           String?   @db.LongText
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   archivedAt      DateTime?
@@ -328,7 +328,7 @@ model LoanRepayment {
   amount      Decimal   @db.Decimal(19, 4)
   currency    String
   paymentDate DateTime  @default(now())
-  notes       String?
+  notes       String?   @db.LongText
   adjustment  Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -357,7 +357,7 @@ model Investment {
   maturityDate        DateTime?
   purchaseDate        DateTime?
   latestValuationDate DateTime?
-  notes               String?
+  notes               String?   @db.LongText
   zakatEligible       Boolean   @default(false)
   zakatPercentage     Decimal   @default(100) @db.Decimal(5, 2)
   createdAt           DateTime  @default(now())
@@ -433,7 +433,7 @@ model Asset {
   valuationDate   DateTime?
   zakatEligible   Boolean   @default(false)
   zakatPercentage Decimal   @default(100) @db.Decimal(5, 2)
-  notes           String?
+  notes           String?   @db.LongText
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   archivedAt      DateTime?
@@ -464,7 +464,7 @@ model BankAccount {
   openingBalance    Decimal    @default(0) @db.Decimal(19, 4)
   currentBalance    Decimal?   @db.Decimal(19, 4)
   openedAt          DateTime?
-  notes             String?    @db.Text
+  notes             String?    @db.LongText
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
   archivedAt        DateTime?
@@ -497,7 +497,7 @@ model BankCard {
   billingCycleDay     Int?
   paymentDueDay       Int?
   status              String       @default("Active")
-  notes               String?      @db.Text
+  notes               String?      @db.LongText
   pinnedAt            DateTime?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
@@ -567,7 +567,7 @@ model ZakatCalculationItem {
   currency       String
   included       Boolean          @default(true)
   eligibilityPct Decimal          @default(100) @db.Decimal(5, 2)
-  notes          String?
+  notes          String?          @db.LongText
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   calculation    ZakatCalculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
@@ -584,7 +584,7 @@ model ZakatPayment {
   currency      String
   paymentDate   DateTime
   recipient     String?
-  notes         String?
+  notes         String?           @db.LongText
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
   archivedAt    DateTime?

@@ -617,9 +617,7 @@ export function ExpenseDetailPage() {
             >
               <div className="transaction-main-info">
                 <strong>{transaction.purpose}</strong>
-                <time>
-                  {formatAppDate(transaction.transactionDate)}
-                </time>
+                <time>{formatAppDate(transaction.transactionDate)}</time>
               </div>
               <div className="transaction-currency-strip">
                 {amountLines.map((amount) => (
@@ -890,7 +888,7 @@ export function ExpenseDetailPage() {
               </div>
               <label>
                 Notes
-                <input
+                <textarea
                   value={form.notes}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -898,6 +896,7 @@ export function ExpenseDetailPage() {
                       notes: event.target.value,
                     }))
                   }
+                  rows={4}
                 />
               </label>
               <label className="file-input">
@@ -994,9 +993,7 @@ export function ExpenseDetailPage() {
             <dl className="detail-list">
               <div>
                 <dt>Date</dt>
-                <dd>
-                  {formatAppDate(detailTransaction.transactionDate)}
-                </dd>
+                <dd>{formatAppDate(detailTransaction.transactionDate)}</dd>
               </div>
               <div>
                 <dt>Total</dt>

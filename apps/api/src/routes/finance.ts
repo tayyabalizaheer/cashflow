@@ -40,6 +40,7 @@ const nullableNonNegativeDecimal = z.preprocess(
   (value) => (value === "" ? null : value),
   z.union([nonNegativeDecimal, z.null()]).optional(),
 );
+const noteText = z.string().max(50_000);
 const listQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
@@ -302,7 +303,7 @@ const expenseSetupSchema = z
     name: z.string().trim().min(2).max(200),
     mainCurrency: currency,
     currencies: z.array(currency).min(1).max(12),
-    notes: z.string().max(1000).optional(),
+    notes: noteText.optional(),
   })
   .superRefine((input, ctx) => {
     if (!input.currencies.includes(input.mainCurrency)) {
@@ -331,7 +332,7 @@ const attachmentSchema = z.object({
 const expenseTransactionSchema = z.object({
   purpose: z.string().trim().min(2).max(200),
   transactionDate: z.coerce.date().default(() => new Date()),
-  notes: z.string().max(1000).optional(),
+  notes: noteText.optional(),
   images: z.array(base64Image).max(5).default([]),
   attachments: z.array(attachmentSchema).max(5).default([]),
   amounts: z.array(transactionAmountSchema).min(1).max(12),
@@ -917,7 +918,7 @@ const loanTransactionSchema = z.object({
   currency,
   amount: positiveDecimal,
   transactionDate: z.coerce.date().default(() => new Date()),
-  notes: z.string().max(1000).optional(),
+  notes: noteText.optional(),
   images: z.array(base64Image).max(5).default([]),
   attachments: z.array(attachmentSchema).max(5).default([]),
 });
@@ -1319,7 +1320,7 @@ const repaymentSchema = z.object({
   amount: positiveDecimal,
   currency,
   paymentDate: z.coerce.date().default(() => new Date()),
-  notes: z.string().max(1000).optional(),
+  notes: noteText.optional(),
   adjustment: z.boolean().default(false),
 });
 
@@ -1384,7 +1385,7 @@ const investmentSchema = z.object({
   maturityDate: z.coerce.date().nullable().optional(),
   purchaseDate: z.coerce.date().optional(),
   latestValuationDate: z.coerce.date().optional(),
-  notes: z.string().max(1000).optional(),
+  notes: noteText.optional(),
   zakatEligible: z.boolean().default(false),
   zakatPercentage: nonNegativeDecimal.default(100),
 });
@@ -1921,7 +1922,7 @@ const assetSchema = z.object({
   valuationDate: z.coerce.date().optional(),
   zakatEligible: z.boolean().default(false),
   zakatPercentage: nonNegativeDecimal.default(100),
-  notes: z.string().max(1000).optional(),
+  notes: noteText.optional(),
 });
 
 financeRouter.get(
@@ -2068,7 +2069,7 @@ const accountSchema = z.object({
   openingBalance: nonNegativeDecimal.default(0),
   currentBalance: nullableNonNegativeDecimal,
   openedAt: z.coerce.date().nullable().optional(),
-  notes: z.string().max(1000).nullable().optional(),
+  notes: noteText.nullable().optional(),
 });
 
 const safeCardSelect = {
@@ -2203,7 +2204,7 @@ const cardSchema = z.object({
   paymentDueDay: z.coerce.number().int().min(1).max(31).nullable().optional(),
   status: z.string().trim().min(2).max(40).default("Active"),
   pinnedAt: z.coerce.date().nullable().optional(),
-  notes: z.string().max(1000).nullable().optional(),
+  notes: noteText.nullable().optional(),
 });
 
 const cardUpdateSchema = cardSchema.partial();
@@ -2543,7 +2544,7 @@ const zakatSchema = z.object({
       currency,
       included: z.boolean().default(true),
       eligibilityPct: nonNegativeDecimal.default(100),
-      notes: z.string().max(500).optional(),
+      notes: noteText.optional(),
     }),
   ),
 });
