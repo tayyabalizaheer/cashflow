@@ -1,0 +1,3 @@
+ALTER TABLE `Investment`
+  ADD COLUMN `stockType` VARCHAR(191) NULL,
+  ADD COLUMN `maturityDate` DATETIME(3) NULL;

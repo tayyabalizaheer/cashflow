@@ -630,6 +630,17 @@ th {
   font-weight: 700;
 }
 
+.field-stack {
+  display: grid;
+  gap: 7px;
+}
+
+.input-label-text {
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
 .form-card input,
 .form-card select {
   width: 100%;

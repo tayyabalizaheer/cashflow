@@ -1069,11 +1069,13 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       stockFundName: payload.stockFundName ?? null,
       amountInvested: payload.amountInvested ?? "0",
       currency: payload.currency,
+      stockType: payload.stockType ?? null,
       quantity: payload.quantity ?? null,
       nav: payload.nav ?? null,
       currentValue: payload.currentValue ?? null,
       tenure: payload.tenure ?? null,
       profitPayment: payload.profitPayment ?? null,
+      maturityDate: payload.maturityDate ?? null,
       purchaseDate: payload.purchaseDate ?? null,
       latestValuationDate: payload.latestValuationDate ?? null,
       zakatEligible: Boolean(payload.zakatEligible),
@@ -1214,6 +1216,9 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       amountInvested:
         payload.amountInvested ?? existingInvestment?.amountInvested ?? "0",
       currency: payload.currency ?? existingInvestment?.currency,
+      stockType: hasOwnRecordKey(payload, "stockType")
+        ? payload.stockType
+        : (existingInvestment?.stockType ?? null),
       quantity: hasOwnRecordKey(payload, "quantity")
         ? payload.quantity
         : (existingInvestment?.quantity ?? null),
@@ -1229,6 +1234,9 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       profitPayment: hasOwnRecordKey(payload, "profitPayment")
         ? payload.profitPayment
         : (existingInvestment?.profitPayment ?? null),
+      maturityDate: hasOwnRecordKey(payload, "maturityDate")
+        ? payload.maturityDate
+        : (existingInvestment?.maturityDate ?? null),
       purchaseDate: hasOwnRecordKey(payload, "purchaseDate")
         ? payload.purchaseDate
         : (existingInvestment?.purchaseDate ?? null),

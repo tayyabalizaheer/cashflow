@@ -70,6 +70,7 @@ type RecordItem = {
   amountInvested?: string;
   value?: string;
   currency: string;
+  stockType?: "Open ended" | "Closed ended" | string | null;
   quantity?: string | null;
   nav?: string | null;
   currentValue?: string | null;
@@ -79,6 +80,7 @@ type RecordItem = {
   currentPriceDate?: string | null;
   tenure?: string | null;
   profitPayment?: string | null;
+  maturityDate?: string | null;
   purchaseDate?: string | null;
   latestValuationDate?: string | null;
   notes?: string | null;
@@ -150,6 +152,7 @@ type InvestmentFormState = {
   type: string;
   name: string;
   stockFundName: string;
+  stockType: "Open ended" | "Closed ended";
   amountInvested: string;
   currency: string;
   quantity: string;
@@ -157,6 +160,7 @@ type InvestmentFormState = {
   currentValue: string;
   tenure: string;
   profitPayment: string;
+  maturityDate: string;
   purchaseDate: string;
   zakatEligible: boolean;
   notes: string;
@@ -430,6 +434,12 @@ function investmentCurrentValue(investment: RecordItem) {
 function investmentDate(investment: RecordItem) {
   const date = investment.latestValuationDate ?? investment.purchaseDate;
   return date ? formatAppDate(date, "") : "";
+}
+
+function investmentStockType(investment: RecordItem) {
+  return investment.stockType === "Closed ended"
+    ? "Closed ended"
+    : "Open ended";
 }
 
 function investmentGroupKey(investment: RecordItem) {
@@ -797,6 +807,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     type: "",
     name: "",
     stockFundName: "",
+    stockType: "Open ended",
     amountInvested: "",
     currency: "",
     quantity: "",
@@ -804,6 +815,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     currentValue: "",
     tenure: "",
     profitPayment: "",
+    maturityDate: "",
     purchaseDate: todayInputValue(),
     zakatEligible: false,
     notes: "",
@@ -918,10 +930,12 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
         type: "",
         name: "",
         stockFundName: "",
+        stockType: "Open ended",
         amountInvested: "",
         quantity: "",
         tenure: "",
         profitPayment: "",
+        maturityDate: "",
         nav: "",
         currentValue: "",
         purchaseDate: todayInputValue(),
@@ -1087,6 +1101,18 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     }));
   }
 
+  function setInvestmentStockType(type: InvestmentFormState["stockType"]) {
+    setInvestmentForm((current) => ({
+      ...current,
+      stockType: type,
+      quantity: type === "Open ended" ? current.quantity : "",
+      nav: type === "Open ended" ? current.nav : "",
+      tenure: type === "Closed ended" ? current.tenure : "",
+      profitPayment: type === "Closed ended" ? current.profitPayment : "",
+      maturityDate: type === "Closed ended" ? current.maturityDate : "",
+    }));
+  }
+
   function chooseInvestmentStock(fundName: string) {
     setInvestmentForm((current) => ({
       ...current,
@@ -1201,11 +1227,28 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       stockFundName: selectedStockName || null,
       amountInvested: investmentForm.amountInvested,
       currency: investmentForm.currency,
-      quantity: investmentForm.quantity || undefined,
-      nav: investmentForm.nav || undefined,
+      stockType: investmentForm.stockType,
+      quantity:
+        investmentForm.stockType === "Open ended"
+          ? investmentForm.quantity || null
+          : null,
+      nav:
+        investmentForm.stockType === "Open ended"
+          ? investmentForm.nav || null
+          : null,
       currentValue: investmentForm.currentValue || undefined,
-      tenure: investmentForm.tenure.trim() || null,
-      profitPayment: investmentForm.profitPayment.trim() || null,
+      tenure:
+        investmentForm.stockType === "Closed ended"
+          ? investmentForm.tenure.trim() || null
+          : null,
+      profitPayment:
+        investmentForm.stockType === "Closed ended"
+          ? investmentForm.profitPayment.trim() || null
+          : null,
+      maturityDate:
+        investmentForm.stockType === "Closed ended"
+          ? investmentForm.maturityDate || null
+          : null,
       purchaseDate: investmentForm.purchaseDate || undefined,
       latestValuationDate: investmentForm.purchaseDate || undefined,
       notes: investmentForm.notes || undefined,
@@ -1322,10 +1365,12 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       type: "",
       name: "",
       stockFundName: "",
+      stockType: "Open ended",
       amountInvested: "",
       quantity: "",
       tenure: "",
       profitPayment: "",
+      maturityDate: "",
       nav: "",
       currentValue: "",
       purchaseDate: todayInputValue(),
@@ -1343,6 +1388,8 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       type: investment.type ?? "",
       name: investment.name ?? investment.stockFundName ?? "",
       stockFundName: investment.stockFundName ?? "",
+      stockType:
+        investment.stockType === "Closed ended" ? "Closed ended" : "Open ended",
       amountInvested: String(investment.amountInvested ?? ""),
       currency: investment.currency,
       quantity: String(investment.quantity ?? ""),
@@ -1350,6 +1397,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       currentValue: String(investment.currentValue ?? ""),
       tenure: investment.tenure ?? "",
       profitPayment: investment.profitPayment ?? "",
+      maturityDate: dateInputValue(investment.maturityDate),
       purchaseDate: dateInputValue(
         investment.latestValuationDate ?? investment.purchaseDate,
       ),
@@ -1880,6 +1928,33 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                     No stocks available. Use Manual to enter this investment.
                   </div>
                 ) : null}
+                <div className="field-stack">
+                  <span className="input-label-text">Stock type</span>
+                  <div className="investment-source-picker segmented">
+                    <button
+                      className={
+                        investmentForm.stockType === "Open ended"
+                          ? "selected"
+                          : ""
+                      }
+                      type="button"
+                      onClick={() => setInvestmentStockType("Open ended")}
+                    >
+                      Open ended
+                    </button>
+                    <button
+                      className={
+                        investmentForm.stockType === "Closed ended"
+                          ? "selected"
+                          : ""
+                      }
+                      type="button"
+                      onClick={() => setInvestmentStockType("Closed ended")}
+                    >
+                      Closed ended
+                    </button>
+                  </div>
+                </div>
                 <div className="compact-form">
                   <label>
                     Cost
@@ -1915,32 +1990,34 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                     </select>
                   </label>
                 </div>
-                <div className="compact-form">
-                  <label>
-                    Quantity
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.00000001"
-                      value={investmentForm.quantity}
-                      onChange={(event) =>
-                        updateInvestmentForm("quantity", event.target.value)
-                      }
-                    />
-                  </label>
-                  <label>
-                    NAV
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.00000001"
-                      value={investmentForm.nav}
-                      onChange={(event) =>
-                        updateInvestmentForm("nav", event.target.value)
-                      }
-                    />
-                  </label>
-                </div>
+                {investmentForm.stockType === "Open ended" ? (
+                  <div className="compact-form">
+                    <label>
+                      Quantity
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.00000001"
+                        value={investmentForm.quantity}
+                        onChange={(event) =>
+                          updateInvestmentForm("quantity", event.target.value)
+                        }
+                      />
+                    </label>
+                    <label>
+                      NAV
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.00000001"
+                        value={investmentForm.nav}
+                        onChange={(event) =>
+                          updateInvestmentForm("nav", event.target.value)
+                        }
+                      />
+                    </label>
+                  </div>
+                ) : null}
                 <div className="compact-form">
                   <label>
                     Initial value
@@ -1965,31 +2042,48 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                     />
                   </label>
                 </div>
-                <div className="compact-form">
-                  <label>
-                    Tenure
-                    <input
-                      value={investmentForm.tenure}
-                      onChange={(event) =>
-                        updateInvestmentForm("tenure", event.target.value)
-                      }
-                      placeholder="6 months, 3 years, until maturity"
-                    />
-                  </label>
-                  <label>
-                    Profit payment
-                    <input
-                      value={investmentForm.profitPayment}
-                      onChange={(event) =>
-                        updateInvestmentForm(
-                          "profitPayment",
-                          event.target.value,
-                        )
-                      }
-                      placeholder="Monthly, quarterly, at maturity"
-                    />
-                  </label>
-                </div>
+                {investmentForm.stockType === "Closed ended" ? (
+                  <>
+                    <div className="compact-form">
+                      <label>
+                        Tenure
+                        <input
+                          value={investmentForm.tenure}
+                          onChange={(event) =>
+                            updateInvestmentForm("tenure", event.target.value)
+                          }
+                          placeholder="6 months, 3 years, until maturity"
+                        />
+                      </label>
+                      <label>
+                        Profit payment
+                        <input
+                          value={investmentForm.profitPayment}
+                          onChange={(event) =>
+                            updateInvestmentForm(
+                              "profitPayment",
+                              event.target.value,
+                            )
+                          }
+                          placeholder="Monthly, quarterly, at maturity"
+                        />
+                      </label>
+                    </div>
+                    <label>
+                      Maturity date
+                      <input
+                        type="date"
+                        value={investmentForm.maturityDate}
+                        onChange={(event) =>
+                          updateInvestmentForm(
+                            "maturityDate",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </label>
+                  </>
+                ) : null}
                 <label>
                   Notes
                   <textarea
@@ -2094,6 +2188,10 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                   <dd>{investmentDetail.stockFundName ?? "Manual entry"}</dd>
                 </div>
                 <div>
+                  <dt>Stock type</dt>
+                  <dd>{investmentStockType(investmentDetail)}</dd>
+                </div>
+                <div>
                   <dt>Total cost</dt>
                   <dd>
                     {formatAmountWithCode(
@@ -2111,14 +2209,16 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                     )}
                   </dd>
                 </div>
-                <div>
-                  <dt>No. of units</dt>
-                  <dd>
-                    {investmentDetail.quantity
-                      ? formatNumber(investmentDetail.quantity)
-                      : "-"}
-                  </dd>
-                </div>
+                {investmentStockType(investmentDetail) === "Open ended" ? (
+                  <div>
+                    <dt>No. of units</dt>
+                    <dd>
+                      {investmentDetail.quantity
+                        ? formatNumber(investmentDetail.quantity)
+                        : "-"}
+                    </dd>
+                  </div>
+                ) : null}
                 <div>
                   <dt>Current value</dt>
                   <dd>
@@ -2128,22 +2228,26 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                     )}
                   </dd>
                 </div>
-                <div>
-                  <dt>Current price</dt>
-                  <dd>
-                    {investmentDetail.currentUnitPrice
-                      ? `${formatNumber(investmentDetail.currentUnitPrice)} (${investmentDetail.currentPriceSource ?? "Price"})`
-                      : "-"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>NAV</dt>
-                  <dd>
-                    {investmentDetail.nav
-                      ? formatNumber(investmentDetail.nav)
-                      : "-"}
-                  </dd>
-                </div>
+                {investmentStockType(investmentDetail) === "Open ended" ? (
+                  <>
+                    <div>
+                      <dt>Current price</dt>
+                      <dd>
+                        {investmentDetail.currentUnitPrice
+                          ? `${formatNumber(investmentDetail.currentUnitPrice)} (${investmentDetail.currentPriceSource ?? "Price"})`
+                          : "-"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>NAV</dt>
+                      <dd>
+                        {investmentDetail.nav
+                          ? formatNumber(investmentDetail.nav)
+                          : "-"}
+                      </dd>
+                    </div>
+                  </>
+                ) : null}
                 <div>
                   <dt>Date</dt>
                   <dd>
@@ -2153,14 +2257,22 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                     )}
                   </dd>
                 </div>
-                <div>
-                  <dt>Tenure</dt>
-                  <dd>{investmentDetail.tenure || "-"}</dd>
-                </div>
-                <div>
-                  <dt>Profit payment</dt>
-                  <dd>{investmentDetail.profitPayment || "-"}</dd>
-                </div>
+                {investmentStockType(investmentDetail) === "Closed ended" ? (
+                  <>
+                    <div>
+                      <dt>Tenure</dt>
+                      <dd>{investmentDetail.tenure || "-"}</dd>
+                    </div>
+                    <div>
+                      <dt>Profit payment</dt>
+                      <dd>{investmentDetail.profitPayment || "-"}</dd>
+                    </div>
+                    <div>
+                      <dt>Maturity date</dt>
+                      <dd>{detailDate(investmentDetail.maturityDate)}</dd>
+                    </div>
+                  </>
+                ) : null}
                 <div>
                   <dt>Zakatable</dt>
                   <dd>{investmentDetail.zakatEligible ? "Yes" : "No"}</dd>
