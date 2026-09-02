@@ -352,6 +352,7 @@ model Investment {
   nav                 Decimal?  @db.Decimal(19, 8)
   currentValue        Decimal?  @db.Decimal(19, 4)
   tenure              String?
+  profitPayment       String?
   purchaseDate        DateTime?
   latestValuationDate DateTime?
   notes               String?

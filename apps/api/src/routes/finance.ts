@@ -1378,6 +1378,7 @@ const investmentSchema = z.object({
   nav: nonNegativeDecimal.optional(),
   currentValue: nonNegativeDecimal.optional(),
   tenure: z.string().trim().max(80).nullable().optional(),
+  profitPayment: z.string().trim().max(120).nullable().optional(),
   purchaseDate: z.coerce.date().optional(),
   latestValuationDate: z.coerce.date().optional(),
   notes: z.string().max(1000).optional(),

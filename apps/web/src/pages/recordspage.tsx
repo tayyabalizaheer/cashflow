@@ -78,6 +78,7 @@ type RecordItem = {
   currentPriceSource?: string | null;
   currentPriceDate?: string | null;
   tenure?: string | null;
+  profitPayment?: string | null;
   purchaseDate?: string | null;
   latestValuationDate?: string | null;
   notes?: string | null;
@@ -155,6 +156,7 @@ type InvestmentFormState = {
   nav: string;
   currentValue: string;
   tenure: string;
+  profitPayment: string;
   purchaseDate: string;
   zakatEligible: boolean;
   notes: string;
@@ -801,6 +803,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     nav: "",
     currentValue: "",
     tenure: "",
+    profitPayment: "",
     purchaseDate: todayInputValue(),
     zakatEligible: false,
     notes: "",
@@ -918,6 +921,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
         amountInvested: "",
         quantity: "",
         tenure: "",
+        profitPayment: "",
         nav: "",
         currentValue: "",
         purchaseDate: todayInputValue(),
@@ -1201,6 +1205,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       nav: investmentForm.nav || undefined,
       currentValue: investmentForm.currentValue || undefined,
       tenure: investmentForm.tenure.trim() || null,
+      profitPayment: investmentForm.profitPayment.trim() || null,
       purchaseDate: investmentForm.purchaseDate || undefined,
       latestValuationDate: investmentForm.purchaseDate || undefined,
       notes: investmentForm.notes || undefined,
@@ -1320,6 +1325,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       amountInvested: "",
       quantity: "",
       tenure: "",
+      profitPayment: "",
       nav: "",
       currentValue: "",
       purchaseDate: todayInputValue(),
@@ -1343,6 +1349,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       nav: String(investment.nav ?? ""),
       currentValue: String(investment.currentValue ?? ""),
       tenure: investment.tenure ?? "",
+      profitPayment: investment.profitPayment ?? "",
       purchaseDate: dateInputValue(
         investment.latestValuationDate ?? investment.purchaseDate,
       ),
@@ -1958,16 +1965,31 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                     />
                   </label>
                 </div>
-                <label>
-                  Tenure
-                  <input
-                    value={investmentForm.tenure}
-                    onChange={(event) =>
-                      updateInvestmentForm("tenure", event.target.value)
-                    }
-                    placeholder="6 months, 3 years, until maturity"
-                  />
-                </label>
+                <div className="compact-form">
+                  <label>
+                    Tenure
+                    <input
+                      value={investmentForm.tenure}
+                      onChange={(event) =>
+                        updateInvestmentForm("tenure", event.target.value)
+                      }
+                      placeholder="6 months, 3 years, until maturity"
+                    />
+                  </label>
+                  <label>
+                    Profit payment
+                    <input
+                      value={investmentForm.profitPayment}
+                      onChange={(event) =>
+                        updateInvestmentForm(
+                          "profitPayment",
+                          event.target.value,
+                        )
+                      }
+                      placeholder="Monthly, quarterly, at maturity"
+                    />
+                  </label>
+                </div>
                 <label>
                   Notes
                   <textarea
@@ -2134,6 +2156,10 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                 <div>
                   <dt>Tenure</dt>
                   <dd>{investmentDetail.tenure || "-"}</dd>
+                </div>
+                <div>
+                  <dt>Profit payment</dt>
+                  <dd>{investmentDetail.profitPayment || "-"}</dd>
                 </div>
                 <div>
                   <dt>Zakatable</dt>

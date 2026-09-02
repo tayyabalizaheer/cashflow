@@ -1073,6 +1073,7 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       nav: payload.nav ?? null,
       currentValue: payload.currentValue ?? null,
       tenure: payload.tenure ?? null,
+      profitPayment: payload.profitPayment ?? null,
       purchaseDate: payload.purchaseDate ?? null,
       latestValuationDate: payload.latestValuationDate ?? null,
       zakatEligible: Boolean(payload.zakatEligible),
@@ -1225,6 +1226,9 @@ function applyLocalMutation(db: Database, mutation: OfflineMutation) {
       tenure: hasOwnRecordKey(payload, "tenure")
         ? payload.tenure
         : (existingInvestment?.tenure ?? null),
+      profitPayment: hasOwnRecordKey(payload, "profitPayment")
+        ? payload.profitPayment
+        : (existingInvestment?.profitPayment ?? null),
       purchaseDate: hasOwnRecordKey(payload, "purchaseDate")
         ? payload.purchaseDate
         : (existingInvestment?.purchaseDate ?? null),
