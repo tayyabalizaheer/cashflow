@@ -36,9 +36,10 @@ const nonNegativeDecimal = z
   .refine((value) => Number(value) >= 0, {
     message: "Amount cannot be negative",
   });
-const nullableNonNegativeDecimal = z
-  .union([nonNegativeDecimal, z.null()])
-  .optional();
+const nullableNonNegativeDecimal = z.preprocess(
+  (value) => (value === "" ? null : value),
+  z.union([nonNegativeDecimal, z.null()]).optional(),
+);
 const listQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
@@ -1388,6 +1389,19 @@ const investmentSchema = z.object({
   zakatPercentage: nonNegativeDecimal.default(100),
 });
 
+function investmentData(input: z.infer<typeof investmentSchema>) {
+  const isClosedEnded = input.stockType === "Closed ended";
+  return {
+    ...input,
+    stockType: input.stockType ?? "Open ended",
+    quantity: isClosedEnded ? null : input.quantity,
+    nav: isClosedEnded ? null : input.nav,
+    tenure: isClosedEnded ? input.tenure : null,
+    profitPayment: isClosedEnded ? input.profitPayment : null,
+    maturityDate: isClosedEnded ? input.maturityDate : null,
+  };
+}
+
 function investmentPurchaseTime(investment: {
   purchaseDate?: Date | null;
   createdAt?: Date | null;
@@ -1546,7 +1560,7 @@ financeRouter.post(
   asyncHandler(async (req, res) => {
     const input = investmentSchema.parse(req.body);
     const item = await prisma.investment.create({
-      data: { ...input, userId: req.user!.id },
+      data: { ...investmentData(input), userId: req.user!.id },
     });
     return res.status(201).json({
       data: item,
@@ -1562,7 +1576,7 @@ financeRouter.put(
     const id = paramUuid(req.params.id);
     const item = await prisma.investment.update({
       where: { id, userId: req.user!.id },
-      data: input,
+      data: investmentData(input),
     });
     return res.json({
       data: item,

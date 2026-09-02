@@ -1213,6 +1213,7 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
 
   function submitInvestment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const isOpenEnded = investmentForm.stockType === "Open ended";
     const selectedStockName =
       investmentForm.sourceMode === "stock"
         ? investmentForm.stockFundName.trim()
@@ -1228,27 +1229,14 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       amountInvested: investmentForm.amountInvested,
       currency: investmentForm.currency,
       stockType: investmentForm.stockType,
-      quantity:
-        investmentForm.stockType === "Open ended"
-          ? investmentForm.quantity || null
-          : null,
-      nav:
-        investmentForm.stockType === "Open ended"
-          ? investmentForm.nav || null
-          : null,
+      quantity: isOpenEnded ? investmentForm.quantity || null : null,
+      nav: isOpenEnded ? investmentForm.nav || null : null,
       currentValue: investmentForm.currentValue || undefined,
-      tenure:
-        investmentForm.stockType === "Closed ended"
-          ? investmentForm.tenure.trim() || null
-          : null,
-      profitPayment:
-        investmentForm.stockType === "Closed ended"
-          ? investmentForm.profitPayment.trim() || null
-          : null,
-      maturityDate:
-        investmentForm.stockType === "Closed ended"
-          ? investmentForm.maturityDate || null
-          : null,
+      tenure: isOpenEnded ? null : investmentForm.tenure.trim() || null,
+      profitPayment: isOpenEnded
+        ? null
+        : investmentForm.profitPayment.trim() || null,
+      maturityDate: isOpenEnded ? null : investmentForm.maturityDate || null,
       purchaseDate: investmentForm.purchaseDate || undefined,
       latestValuationDate: investmentForm.purchaseDate || undefined,
       notes: investmentForm.notes || undefined,
