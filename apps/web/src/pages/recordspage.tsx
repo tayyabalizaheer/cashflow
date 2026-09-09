@@ -459,10 +459,7 @@ function investmentNavLabel(investment: RecordItem) {
   const currentNav = investment.currentUnitPrice
     ? formatNumber(investment.currentUnitPrice)
     : "-";
-  const source = investment.currentPriceSource
-    ? ` (${investment.currentPriceSource})`
-    : "";
-  return `NAV ${nav} | Current ${currentNav}${source}`;
+  return `NAV ${nav} | Current ${currentNav}`;
 }
 
 function investmentGroupKey(investment: RecordItem) {
@@ -722,16 +719,6 @@ function InvestmentList({
                           ? formatNumber(group.currentUnitPrice)
                           : "-"}
                       </strong>
-                      <small>
-                        {[
-                          group.currentPriceSource || "Latest stock NAV",
-                          group.currentPriceDate
-                            ? formatAppDate(group.currentPriceDate)
-                            : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" | ")}
-                      </small>
                     </div>
                   </>
                 ) : null}
@@ -748,13 +735,12 @@ function InvestmentList({
             </button>
             {isOpen ? (
               <div className="investment-transaction-section">
-                <div className="investment-transaction-divider">
-                  <span>Transactions</span>
-                </div>
                 <div className="investment-transaction-list">
                   {group.transactions.map((transaction) => (
                     <button
-                      className="investment-transaction-row"
+                      className={`investment-transaction-row ${
+                        transaction.zakatEligible ? "zakatable" : ""
+                      }`}
                       type="button"
                       key={transaction.id}
                       onClick={() => onShowDetails(transaction)}
@@ -775,14 +761,14 @@ function InvestmentList({
                       <span className="investment-transaction-values">
                         <strong>
                           {formatAmountWithCode(
-                            investmentCurrentValue(transaction),
+                            transaction.amountInvested ?? "0",
                             transaction.currency,
                           )}
                         </strong>
                         <span>
-                          Cost{" "}
+                          Current value{" "}
                           {formatAmountWithCode(
-                            transaction.amountInvested ?? "0",
+                            investmentCurrentValue(transaction),
                             transaction.currency,
                           )}
                         </span>

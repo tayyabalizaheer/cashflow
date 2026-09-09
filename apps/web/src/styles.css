@@ -1179,27 +1179,7 @@ th {
 }
 
 .investment-transaction-section {
-  border-top: 1px solid var(--line);
   background: var(--mist);
-}
-
-.investment-transaction-divider {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px 6px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0;
-}
-
-.investment-transaction-divider::after {
-  content: "";
-  height: 1px;
-  flex: 1;
-  background: var(--line);
 }
 
 .investment-transaction-list {
@@ -1215,11 +1195,16 @@ th {
   min-height: 48px;
   padding: 12px 16px;
   border: 0;
+  border-left: 4px solid transparent;
   border-top: 1px solid var(--line);
   background: transparent;
   color: var(--ink);
   text-align: left;
   cursor: pointer;
+}
+
+.investment-transaction-row.zakatable {
+  border-left-color: var(--teal);
 }
 
 .investment-transaction-row:hover,
@@ -1252,6 +1237,8 @@ th {
 }
 
 .investment-transaction-values strong {
+  font-size: 1.08rem;
+  line-height: 1.15;
   text-align: right;
 }
 
