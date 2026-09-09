@@ -459,7 +459,10 @@ function investmentNavLabel(investment: RecordItem) {
   const currentNav = investment.currentUnitPrice
     ? formatNumber(investment.currentUnitPrice)
     : "-";
-  return `NAV ${nav} | Current ${currentNav}`;
+  const source = investment.currentPriceSource
+    ? ` (${investment.currentPriceSource})`
+    : "";
+  return `NAV ${nav} | Current ${currentNav}${source}`;
 }
 
 function investmentGroupKey(investment: RecordItem) {
@@ -498,7 +501,9 @@ function investmentGroups(investments: RecordItem[]) {
           quantity: 0,
         };
         currentTotal.cost += Number(transaction.amountInvested ?? 0);
-        currentTotal.currentValue += Number(investmentCurrentValue(transaction));
+        currentTotal.currentValue += Number(
+          investmentCurrentValue(transaction),
+        );
         const transactionQuantity = numericRecordValue(transaction.quantity);
         if (transactionQuantity != null) {
           currentTotal.quantity += transactionQuantity;
@@ -718,9 +723,14 @@ function InvestmentList({
                           : "-"}
                       </strong>
                       <small>
-                        {group.currentPriceDate
-                          ? formatAppDate(group.currentPriceDate)
-                          : group.currentPriceSource || "Latest stock NAV"}
+                        {[
+                          group.currentPriceSource || "Latest stock NAV",
+                          group.currentPriceDate
+                            ? formatAppDate(group.currentPriceDate)
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" | ")}
                       </small>
                     </div>
                   </>

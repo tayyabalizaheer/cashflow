@@ -1424,16 +1424,21 @@ function calculatedInvestmentCurrentValue(
   latestStock?: {
     validityDate: Date;
     navPrice: unknown;
-    offerPrice: unknown;
+    repurchasePrice: unknown;
   },
 ) {
   const quantity = numericInvestmentValue(investment.quantity);
   const stockNav = numericInvestmentValue(latestStock?.navPrice);
-  const stockOffer = numericInvestmentValue(latestStock?.offerPrice);
+  const stockRepurchase = numericInvestmentValue(latestStock?.repurchasePrice);
   const manualNav = numericInvestmentValue(investment.nav);
   const initialValue = numericInvestmentValue(investment.currentValue);
 
-  if (quantity != null && investment.stockFundName && stockNav != null) {
+  if (
+    quantity != null &&
+    investment.stockFundName &&
+    stockNav != null &&
+    stockNav > 0
+  ) {
     return {
       computedCurrentValue: (quantity * stockNav).toFixed(4),
       currentUnitPrice: stockNav.toFixed(4),
@@ -1442,11 +1447,11 @@ function calculatedInvestmentCurrentValue(
     };
   }
 
-  if (quantity != null && investment.stockFundName && stockOffer != null) {
+  if (quantity != null && investment.stockFundName && stockRepurchase != null) {
     return {
-      computedCurrentValue: (quantity * stockOffer).toFixed(4),
-      currentUnitPrice: stockOffer.toFixed(4),
-      currentPriceSource: "Offer",
+      computedCurrentValue: (quantity * stockRepurchase).toFixed(4),
+      currentUnitPrice: stockRepurchase.toFixed(4),
+      currentPriceSource: "Repurchase",
       currentPriceDate: latestStock?.validityDate ?? null,
     };
   }
@@ -1495,7 +1500,7 @@ async function investmentsWithCurrentValues(items: Array<Record<string, any>>) {
       fundName: true,
       validityDate: true,
       navPrice: true,
-      offerPrice: true,
+      repurchasePrice: true,
     },
     orderBy: [{ fundName: "asc" }, { validityDate: "desc" }],
   });
