@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
+  ChevronDown,
   Eye,
   Pencil,
   MoreVertical,
@@ -117,6 +118,7 @@ type InvestmentGroupTotal = {
   currencyCode: string;
   cost: number;
   currentValue: number;
+  quantity: number;
 };
 
 type InvestmentGroup = {
@@ -124,6 +126,10 @@ type InvestmentGroup = {
   title: string;
   type: string;
   latestDate: string;
+  stockType: string;
+  currentUnitPrice: string | null;
+  currentPriceSource: string | null;
+  currentPriceDate: string | null;
   transactionCount: number;
   quantityTotal: number | null;
   totals: InvestmentGroupTotal[];
@@ -342,6 +348,12 @@ function formatAmountWithCode(value: number | string, currencyCode: string) {
   return `${formatNumber(value)} ${currencyCode}`;
 }
 
+function numericRecordValue(value: number | string | null | undefined) {
+  if (value == null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function expenseAmountSummaries(expense: RecordItem) {
   const summaries = expenseCurrencySummary(expense).filter(
     (summary) => summary.total > 0,
@@ -442,6 +454,14 @@ function investmentStockType(investment: RecordItem) {
     : "Open ended";
 }
 
+function investmentNavLabel(investment: RecordItem) {
+  const nav = investment.nav ? formatNumber(investment.nav) : "-";
+  const currentNav = investment.currentUnitPrice
+    ? formatNumber(investment.currentUnitPrice)
+    : "-";
+  return `NAV ${nav} | Current ${currentNav}`;
+}
+
 function investmentGroupKey(investment: RecordItem) {
   const type = investment.type?.trim() || "Investment";
   const name = investmentTitle(investment).trim();
@@ -463,6 +483,9 @@ function investmentGroups(investments: RecordItem[]) {
       );
       const first = orderedTransactions[0]!;
       const totalsByCurrency = new Map<string, InvestmentGroupTotal>();
+      const currentPriceTransaction = orderedTransactions.find(
+        (transaction) => transaction.currentUnitPrice,
+      );
       let quantityTotal = 0;
       let hasQuantity = false;
 
@@ -472,30 +495,50 @@ function investmentGroups(investments: RecordItem[]) {
           currencyCode,
           cost: 0,
           currentValue: 0,
+          quantity: 0,
         };
         currentTotal.cost += Number(transaction.amountInvested ?? 0);
-        currentTotal.currentValue += Number(
-          investmentCurrentValue(transaction),
-        );
+        currentTotal.currentValue += Number(investmentCurrentValue(transaction));
+        const transactionQuantity = numericRecordValue(transaction.quantity);
+        if (transactionQuantity != null) {
+          currentTotal.quantity += transactionQuantity;
+        }
         totalsByCurrency.set(currencyCode, currentTotal);
 
-        const quantity = Number(transaction.quantity);
-        if (Number.isFinite(quantity)) {
+        const quantity = numericRecordValue(transaction.quantity);
+        if (quantity != null) {
           quantityTotal += quantity;
           hasQuantity = true;
         }
       });
+
+      const totals = [...totalsByCurrency.values()]
+        .map((total) => {
+          const currentUnitPrice = numericRecordValue(
+            currentPriceTransaction?.currentUnitPrice,
+          );
+          if (currentUnitPrice == null || total.quantity <= 0) return total;
+          return {
+            ...total,
+            currentValue: total.quantity * currentUnitPrice,
+          };
+        })
+        .sort((left, right) =>
+          left.currencyCode.localeCompare(right.currencyCode),
+        );
 
       return {
         key,
         title: investmentTitle(first),
         type: first.type ?? "Investment",
         latestDate: investmentDate(first),
+        stockType: investmentStockType(first),
+        currentUnitPrice: currentPriceTransaction?.currentUnitPrice ?? null,
+        currentPriceSource: currentPriceTransaction?.currentPriceSource ?? null,
+        currentPriceDate: currentPriceTransaction?.currentPriceDate ?? null,
         transactionCount: orderedTransactions.length,
         quantityTotal: hasQuantity ? quantityTotal : null,
-        totals: [...totalsByCurrency.values()].sort((left, right) =>
-          left.currencyCode.localeCompare(right.currencyCode),
-        ),
+        totals,
         transactions: orderedTransactions,
       };
     })
@@ -595,86 +638,153 @@ function InvestmentList({
   emptyLabel: string;
   onShowDetails: (investment: RecordItem) => void;
 }) {
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set());
+
   if (investments.length === 0) {
     return <div className="empty-state">{emptyLabel}</div>;
   }
 
   const groups = investmentGroups(investments);
 
+  function toggleGroup(groupKey: string) {
+    setOpenGroups((current) => {
+      const next = new Set(current);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  }
+
   return (
     <div className="investment-list investment-group-list">
-      {groups.map((group) => (
-        <article
-          className="investment-card investment-group-card"
-          key={group.key}
-        >
-          <div className="investment-group-summary">
-            <div className="asset-title-block">
-              <strong>{group.title}</strong>
-              <span>
-                {group.type}
-                {group.latestDate ? ` | ${group.latestDate}` : ""}
-              </span>
-            </div>
-            <div className="investment-value-grid">
-              <div className="asset-value-cell">
-                <span>Total cost</span>
-                {group.totals.map((total) => (
-                  <strong key={total.currencyCode}>
-                    {formatAmountWithCode(total.cost, total.currencyCode)}
-                  </strong>
-                ))}
+      {groups.map((group) => {
+        const isOpen = openGroups.has(group.key);
+        return (
+          <article
+            className="investment-card investment-group-card"
+            key={group.key}
+          >
+            <button
+              className="investment-group-summary"
+              type="button"
+              aria-expanded={isOpen}
+              onClick={() => toggleGroup(group.key)}
+            >
+              <div className="asset-title-block">
+                <strong>{group.title}</strong>
+                <span>
+                  {group.type}
+                  {group.latestDate ? ` | ${group.latestDate}` : ""}
+                </span>
               </div>
-              <div className="asset-value-cell">
-                <span>Current value</span>
-                {group.totals.map((total) => (
-                  <strong key={total.currencyCode}>
-                    {formatAmountWithCode(
-                      total.currentValue,
-                      total.currencyCode,
-                    )}
-                  </strong>
-                ))}
+              <div className="investment-value-grid">
+                <div className="asset-value-cell">
+                  <span>Total cost</span>
+                  {group.totals.map((total) => (
+                    <strong key={total.currencyCode}>
+                      {formatAmountWithCode(total.cost, total.currencyCode)}
+                    </strong>
+                  ))}
+                </div>
+                <div className="asset-value-cell">
+                  <span>Current value</span>
+                  {group.totals.map((total) => (
+                    <strong key={total.currencyCode}>
+                      {formatAmountWithCode(
+                        total.currentValue,
+                        total.currencyCode,
+                      )}
+                    </strong>
+                  ))}
+                </div>
+                {group.stockType === "Open ended" ? (
+                  <>
+                    <div className="asset-value-cell">
+                      <span>No. of units</span>
+                      <strong>
+                        {group.quantityTotal != null
+                          ? formatNumber(group.quantityTotal)
+                          : "-"}
+                      </strong>
+                    </div>
+                    <div className="asset-value-cell">
+                      <span>Current NAV</span>
+                      <strong>
+                        {group.currentUnitPrice
+                          ? formatNumber(group.currentUnitPrice)
+                          : "-"}
+                      </strong>
+                      <small>
+                        {group.currentPriceDate
+                          ? formatAppDate(group.currentPriceDate)
+                          : group.currentPriceSource || "Latest stock NAV"}
+                      </small>
+                    </div>
+                  </>
+                ) : null}
+                <div className="asset-value-cell">
+                  <span>Transactions</span>
+                  <strong>{group.transactionCount}</strong>
+                </div>
               </div>
-              <div className="asset-value-cell">
-                <span>No. of units</span>
-                <strong>
-                  {group.quantityTotal != null
-                    ? formatNumber(group.quantityTotal)
-                    : "-"}
-                </strong>
+              <ChevronDown
+                className="investment-accordion-icon"
+                size={18}
+                aria-hidden="true"
+              />
+            </button>
+            {isOpen ? (
+              <div className="investment-transaction-section">
+                <div className="investment-transaction-divider">
+                  <span>Transactions</span>
+                </div>
+                <div className="investment-transaction-list">
+                  {group.transactions.map((transaction) => (
+                    <button
+                      className="investment-transaction-row"
+                      type="button"
+                      key={transaction.id}
+                      onClick={() => onShowDetails(transaction)}
+                    >
+                      <span className="investment-transaction-copy">
+                        <strong>{investmentTitle(transaction)}</strong>
+                        <span>
+                          {investmentDate(transaction) || "No date"}
+                          {investmentStockType(transaction) === "Open ended"
+                            ? ` | Units ${
+                                transaction.quantity
+                                  ? formatNumber(transaction.quantity)
+                                  : "-"
+                              } | ${investmentNavLabel(transaction)}`
+                            : ""}
+                        </span>
+                      </span>
+                      <span className="investment-transaction-values">
+                        <strong>
+                          {formatAmountWithCode(
+                            investmentCurrentValue(transaction),
+                            transaction.currency,
+                          )}
+                        </strong>
+                        <span>
+                          Cost{" "}
+                          {formatAmountWithCode(
+                            transaction.amountInvested ?? "0",
+                            transaction.currency,
+                          )}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="asset-value-cell">
-                <span>Transactions</span>
-                <strong>{group.transactionCount}</strong>
-              </div>
-            </div>
-          </div>
-          <div className="investment-transaction-section">
-            <div className="investment-transaction-divider">
-              <span>Transactions</span>
-            </div>
-            <div className="investment-transaction-list">
-              {group.transactions.map((transaction) => (
-                <button
-                  className="investment-transaction-row"
-                  type="button"
-                  key={transaction.id}
-                  onClick={() => onShowDetails(transaction)}
-                >
-                  <span>{investmentTitle(transaction)}</span>
-                  <strong>
-                    {formatAmountWithCode(
-                      transaction.amountInvested ?? "0",
-                      transaction.currency,
-                    )}
-                  </strong>
-                </button>
-              ))}
-            </div>
-          </div>
-        </article>
-      ))}
+            ) : null}
+          </article>
+        );
+      })}
     </div>
   );
 }

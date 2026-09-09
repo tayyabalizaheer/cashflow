@@ -1097,10 +1097,34 @@ th {
 
 .investment-group-summary {
   display: grid;
-  grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.6fr);
+  grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.6fr) auto;
   gap: 14px;
   align-items: center;
+  width: 100%;
   padding: 16px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.investment-group-summary:hover,
+.investment-group-summary:focus-visible {
+  background: var(--teal-soft);
+}
+
+.investment-group-summary[aria-expanded="true"] {
+  border-bottom: 1px solid var(--line);
+}
+
+.investment-accordion-icon {
+  color: var(--muted);
+  transition: transform 160ms ease;
+}
+
+.investment-group-summary[aria-expanded="true"] .investment-accordion-icon {
+  transform: rotate(180deg);
 }
 
 .asset-title-block,
@@ -1144,6 +1168,14 @@ th {
 .asset-value-cell strong {
   margin-top: 3px;
   line-height: 1.15;
+}
+
+.asset-value-cell small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
 }
 
 .investment-transaction-section {
@@ -1201,7 +1233,25 @@ th {
   overflow-wrap: anywhere;
 }
 
-.investment-transaction-row strong {
+.investment-transaction-values {
+  display: grid;
+  gap: 3px;
+  justify-items: end;
+  text-align: right;
+}
+
+.investment-transaction-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.investment-transaction-copy > span,
+.investment-transaction-values > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.investment-transaction-values strong {
   text-align: right;
 }
 
@@ -2891,7 +2941,17 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
   }
 
   .investment-group-summary {
+    grid-template-columns: minmax(0, 1fr) auto;
     min-width: 0;
+  }
+
+  .investment-group-summary .investment-value-grid {
+    grid-column: 1 / -1;
+  }
+
+  .investment-accordion-icon {
+    grid-column: 2;
+    grid-row: 1;
   }
 
   .asset-card .row-menu-wrap {
