@@ -579,7 +579,10 @@ function AssetList({
   return (
     <div className="asset-list">
       {assets.map((asset) => (
-        <article className="asset-card" key={asset.groupKey}>
+        <article
+          className={`asset-card ${asset.zakatEligible ? "zakatable" : ""}`}
+          key={asset.groupKey}
+        >
           <div className="asset-card-main">
             <div className="asset-title-block">
               <strong>{asset.name ?? "Asset"}</strong>

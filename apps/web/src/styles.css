@@ -1058,9 +1058,14 @@ th {
   align-items: start;
   padding: 16px;
   border: 1px solid var(--line);
+  border-left: 4px solid transparent;
   border-radius: 8px;
   background: var(--paper);
   box-shadow: 0 14px 38px rgba(23, 35, 34, 0.08);
+}
+
+.asset-card.zakatable {
+  border-left-color: var(--teal);
 }
 
 .investment-card {
