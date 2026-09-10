@@ -1235,7 +1235,7 @@ th {
 
 .investment-value-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  grid-template-columns: repeat(5, minmax(112px, 1fr));
   gap: 8px;
 }
 
@@ -3043,6 +3043,7 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
 
   .investment-group-summary .investment-value-grid {
     grid-column: 1 / -1;
+    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   }
 
   .investment-accordion-icon {
