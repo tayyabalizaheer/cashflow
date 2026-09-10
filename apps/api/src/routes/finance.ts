@@ -1382,6 +1382,8 @@ const investmentSchema = z.object({
   currentValue: nullableNonNegativeDecimal,
   tenure: z.string().trim().max(80).nullable().optional(),
   profitPayment: z.string().trim().max(120).nullable().optional(),
+  profitLossType: z.enum(["Book profit", "Book loss"]).nullable().optional(),
+  profitLossAmount: nullableNonNegativeDecimal,
   maturityDate: z.coerce.date().nullable().optional(),
   purchaseDate: z.coerce.date().optional(),
   latestValuationDate: z.coerce.date().optional(),
@@ -1399,6 +1401,11 @@ function investmentData(input: z.infer<typeof investmentSchema>) {
     nav: isClosedEnded ? null : input.nav,
     tenure: isClosedEnded ? input.tenure : null,
     profitPayment: isClosedEnded ? input.profitPayment : null,
+    profitLossType:
+      isClosedEnded && input.profitLossAmount
+        ? (input.profitLossType ?? "Book profit")
+        : null,
+    profitLossAmount: isClosedEnded ? input.profitLossAmount : null,
     maturityDate: isClosedEnded ? input.maturityDate : null,
   };
 }

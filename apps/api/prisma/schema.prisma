@@ -354,6 +354,8 @@ model Investment {
   currentValue        Decimal?  @db.Decimal(19, 4)
   tenure              String?
   profitPayment       String?
+  profitLossType      String?
+  profitLossAmount    Decimal?  @db.Decimal(19, 4)
   maturityDate        DateTime?
   purchaseDate        DateTime?
   latestValuationDate DateTime?

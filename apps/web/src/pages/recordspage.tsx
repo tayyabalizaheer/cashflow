@@ -81,6 +81,8 @@ type RecordItem = {
   currentPriceDate?: string | null;
   tenure?: string | null;
   profitPayment?: string | null;
+  profitLossType?: "Book profit" | "Book loss" | string | null;
+  profitLossAmount?: string | null;
   maturityDate?: string | null;
   purchaseDate?: string | null;
   latestValuationDate?: string | null;
@@ -119,6 +121,7 @@ type InvestmentGroupTotal = {
   cost: number;
   currentValue: number;
   quantity: number;
+  profitLoss: number;
 };
 
 type InvestmentGroup = {
@@ -132,6 +135,7 @@ type InvestmentGroup = {
   currentPriceDate: string | null;
   transactionCount: number;
   quantityTotal: number | null;
+  profitLossTotal: number;
   totals: InvestmentGroupTotal[];
   transactions: RecordItem[];
 };
@@ -166,6 +170,8 @@ type InvestmentFormState = {
   currentValue: string;
   tenure: string;
   profitPayment: string;
+  profitLossType: "Book profit" | "Book loss";
+  profitLossAmount: string;
   maturityDate: string;
   purchaseDate: string;
   zakatEligible: boolean;
@@ -443,6 +449,33 @@ function investmentCurrentValue(investment: RecordItem) {
   return investment.computedCurrentValue || investmentInitialValue(investment);
 }
 
+function investmentSavedProfitLoss(investment: RecordItem) {
+  const amount = numericRecordValue(investment.profitLossAmount) ?? 0;
+  if (investment.profitLossType === "Book loss") return -amount;
+  return amount;
+}
+
+function investmentProfitLoss(investment: RecordItem) {
+  const cost = numericRecordValue(investment.amountInvested) ?? 0;
+  const currentValue =
+    numericRecordValue(investmentCurrentValue(investment)) ?? 0;
+  return currentValue - cost + investmentSavedProfitLoss(investment);
+}
+
+function investmentProfitLossLabel(investment: RecordItem) {
+  if (!investment.profitLossAmount) return null;
+  return `${investment.profitLossType ?? "Profit/loss"} ${formatAmountWithCode(
+    investment.profitLossAmount,
+    investment.currency,
+  )}`;
+}
+
+function profitLossClassName(value: number) {
+  if (value > 0) return "positive";
+  if (value < 0) return "negative";
+  return "";
+}
+
 function investmentDate(investment: RecordItem) {
   const date = investment.latestValuationDate ?? investment.purchaseDate;
   return date ? formatAppDate(date, "") : "";
@@ -496,11 +529,13 @@ function investmentGroups(investments: RecordItem[]) {
           cost: 0,
           currentValue: 0,
           quantity: 0,
+          profitLoss: 0,
         };
         currentTotal.cost += Number(transaction.amountInvested ?? 0);
         currentTotal.currentValue += Number(
           investmentCurrentValue(transaction),
         );
+        currentTotal.profitLoss += investmentProfitLoss(transaction);
         const transactionQuantity = numericRecordValue(transaction.quantity);
         if (transactionQuantity != null) {
           currentTotal.quantity += transactionQuantity;
@@ -523,6 +558,18 @@ function investmentGroups(investments: RecordItem[]) {
           return {
             ...total,
             currentValue: total.quantity * currentUnitPrice,
+            profitLoss:
+              total.quantity * currentUnitPrice -
+              total.cost +
+              [...orderedTransactions]
+                .filter(
+                  (transaction) => transaction.currency === total.currencyCode,
+                )
+                .reduce(
+                  (sum, transaction) =>
+                    sum + investmentSavedProfitLoss(transaction),
+                  0,
+                ),
           };
         })
         .sort((left, right) =>
@@ -540,6 +587,10 @@ function investmentGroups(investments: RecordItem[]) {
         currentPriceDate: currentPriceTransaction?.currentPriceDate ?? null,
         transactionCount: orderedTransactions.length,
         quantityTotal: hasQuantity ? quantityTotal : null,
+        profitLossTotal: totals.reduce(
+          (sum, total) => sum + total.profitLoss,
+          0,
+        ),
         totals,
         transactions: orderedTransactions,
       };
@@ -549,6 +600,35 @@ function investmentGroups(investments: RecordItem[]) {
         investmentPurchaseTime(right.transactions[0]!) -
         investmentPurchaseTime(left.transactions[0]!),
     );
+}
+
+function investmentCurrencyTotals(investments: RecordItem[]) {
+  const totals = new Map<
+    string,
+    {
+      currencyCode: string;
+      cost: number;
+      currentValue: number;
+      profitLoss: number;
+    }
+  >();
+  investments.forEach((investment) => {
+    const currencyCode = investment.currency;
+    const current = totals.get(currencyCode) ?? {
+      currencyCode,
+      cost: 0,
+      currentValue: 0,
+      profitLoss: 0,
+    };
+    current.cost += numericRecordValue(investment.amountInvested) ?? 0;
+    current.currentValue +=
+      numericRecordValue(investmentCurrentValue(investment)) ?? 0;
+    current.profitLoss += investmentProfitLoss(investment);
+    totals.set(currencyCode, current);
+  });
+  return [...totals.values()].sort((left, right) =>
+    left.currencyCode.localeCompare(right.currencyCode),
+  );
 }
 
 function detailDate(value?: string | null) {
@@ -705,6 +785,20 @@ function InvestmentList({
                     </strong>
                   ))}
                 </div>
+                <div className="asset-value-cell">
+                  <span>Profit / loss</span>
+                  {group.totals.map((total) => (
+                    <strong
+                      className={profitLossClassName(total.profitLoss)}
+                      key={total.currencyCode}
+                    >
+                      {formatAmountWithCode(
+                        total.profitLoss,
+                        total.currencyCode,
+                      )}
+                    </strong>
+                  ))}
+                </div>
                 {group.stockType === "Open ended" ? (
                   <>
                     <div className="asset-value-cell">
@@ -758,6 +852,9 @@ function InvestmentList({
                                   ? formatNumber(transaction.quantity)
                                   : "-"
                               } | ${investmentNavLabel(transaction)}`
+                            : ""}
+                          {investmentProfitLossLabel(transaction)
+                            ? ` | ${investmentProfitLossLabel(transaction)}`
                             : ""}
                         </span>
                       </span>
@@ -924,6 +1021,8 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     currentValue: "",
     tenure: "",
     profitPayment: "",
+    profitLossType: "Book profit",
+    profitLossAmount: "",
     maturityDate: "",
     purchaseDate: todayInputValue(),
     zakatEligible: false,
@@ -1044,6 +1143,8 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
         quantity: "",
         tenure: "",
         profitPayment: "",
+        profitLossType: "Book profit",
+        profitLossAmount: "",
         maturityDate: "",
         nav: "",
         currentValue: "",
@@ -1218,6 +1319,9 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       nav: type === "Open ended" ? current.nav : "",
       tenure: type === "Closed ended" ? current.tenure : "",
       profitPayment: type === "Closed ended" ? current.profitPayment : "",
+      profitLossType:
+        type === "Closed ended" ? current.profitLossType : "Book profit",
+      profitLossAmount: type === "Closed ended" ? current.profitLossAmount : "",
       maturityDate: type === "Closed ended" ? current.maturityDate : "",
     }));
   }
@@ -1345,6 +1449,13 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       profitPayment: isOpenEnded
         ? null
         : investmentForm.profitPayment.trim() || null,
+      profitLossType:
+        !isOpenEnded && investmentForm.profitLossAmount
+          ? investmentForm.profitLossType
+          : null,
+      profitLossAmount: !isOpenEnded
+        ? investmentForm.profitLossAmount || null
+        : null,
       maturityDate: isOpenEnded ? null : investmentForm.maturityDate || null,
       purchaseDate: investmentForm.purchaseDate || undefined,
       latestValuationDate: investmentForm.purchaseDate || undefined,
@@ -1467,6 +1578,8 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       quantity: "",
       tenure: "",
       profitPayment: "",
+      profitLossType: "Book profit",
+      profitLossAmount: "",
       maturityDate: "",
       nav: "",
       currentValue: "",
@@ -1494,6 +1607,13 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       currentValue: String(investment.currentValue ?? ""),
       tenure: investment.tenure ?? "",
       profitPayment: investment.profitPayment ?? "",
+      profitLossType:
+        investment.profitLossType === "Book loss"
+          ? "Book loss"
+          : investment.profitLossType === "Book profit"
+            ? "Book profit"
+            : "Book profit",
+      profitLossAmount: String(investment.profitLossAmount ?? ""),
       maturityDate: dateInputValue(investment.maturityDate),
       purchaseDate: dateInputValue(
         investment.latestValuationDate ?? investment.purchaseDate,
@@ -1892,6 +2012,8 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
   }
 
   if (module === "investments") {
+    const investmentTotals = investmentCurrencyTotals(rows);
+
     return (
       <section className="page">
         <RecordHeader
@@ -1907,6 +2029,44 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
             onApply={() => setShowFilters(false)}
           />
         ) : null}
+        <section className="expense-card asset-total-strip investment-total-strip">
+          <div>
+            <p className="eyebrow">Portfolio</p>
+            <strong>{rows.length} investment transaction(s)</strong>
+          </div>
+          <div className="asset-total-list investment-total-list">
+            {investmentTotals.length === 0 ? (
+              <span>No investment value yet</span>
+            ) : (
+              investmentTotals.map((summary) => (
+                <div
+                  className="investment-total-line"
+                  key={summary.currencyCode}
+                >
+                  <span>{summary.currencyCode}</span>
+                  <strong>
+                    Total investment{" "}
+                    {formatAmountWithCode(summary.cost, summary.currencyCode)}
+                  </strong>
+                  <strong>
+                    Current value{" "}
+                    {formatAmountWithCode(
+                      summary.currentValue,
+                      summary.currencyCode,
+                    )}
+                  </strong>
+                  <strong className={profitLossClassName(summary.profitLoss)}>
+                    Profit / loss{" "}
+                    {formatAmountWithCode(
+                      summary.profitLoss,
+                      summary.currencyCode,
+                    )}
+                  </strong>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
         {showInvestmentForm ? (
           <div
             className="modal-backdrop"
@@ -2179,6 +2339,39 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                         }
                       />
                     </label>
+                    <div className="compact-form">
+                      <label>
+                        Booked result
+                        <select
+                          value={investmentForm.profitLossType}
+                          onChange={(event) =>
+                            updateInvestmentForm(
+                              "profitLossType",
+                              event.target
+                                .value as InvestmentFormState["profitLossType"],
+                            )
+                          }
+                        >
+                          <option value="Book profit">Book profit</option>
+                          <option value="Book loss">Book loss</option>
+                        </select>
+                      </label>
+                      <label>
+                        Booked amount
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.0001"
+                          value={investmentForm.profitLossAmount}
+                          onChange={(event) =>
+                            updateInvestmentForm(
+                              "profitLossAmount",
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
                   </>
                 ) : null}
                 <label>
@@ -2325,6 +2518,21 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                     )}
                   </dd>
                 </div>
+                <div>
+                  <dt>Profit / loss</dt>
+                  <dd>
+                    {formatAmountWithCode(
+                      investmentProfitLoss(investmentDetail),
+                      investmentDetail.currency,
+                    )}
+                  </dd>
+                </div>
+                {investmentProfitLossLabel(investmentDetail) ? (
+                  <div>
+                    <dt>Saved result</dt>
+                    <dd>{investmentProfitLossLabel(investmentDetail)}</dd>
+                  </div>
+                ) : null}
                 {investmentStockType(investmentDetail) === "Open ended" ? (
                   <>
                     <div>

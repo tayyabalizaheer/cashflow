@@ -1037,6 +1037,34 @@ th {
   overflow-wrap: anywhere;
 }
 
+.investment-total-list {
+  align-items: stretch;
+}
+
+.investment-total-line {
+  display: grid;
+  gap: 4px;
+  min-width: min(100%, 220px);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--mist);
+}
+
+.investment-total-line span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.positive {
+  color: var(--teal);
+}
+
+.negative {
+  color: var(--danger-bg);
+}
+
 .asset-list {
   display: grid;
   gap: 12px;
