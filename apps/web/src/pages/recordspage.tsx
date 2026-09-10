@@ -799,6 +799,28 @@ function InvestmentList({
               aria-expanded={isOpen}
               onClick={() => toggleGroup(group.key)}
             >
+              {group.stockType === "Open ended" ? (
+                <span
+                  className="investment-result-button investment-result-button-inline"
+                  role="button"
+                  tabIndex={0}
+                  title="Add profit/loss record"
+                  aria-label="Add profit/loss record"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onAddProfitLoss({ kind: "group", group });
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onAddProfitLoss({ kind: "group", group });
+                    }
+                  }}
+                >
+                  <Plus size={16} />
+                </span>
+              ) : null}
               <div className="asset-title-block">
                 <strong>{group.title}</strong>
                 <span>
@@ -868,19 +890,6 @@ function InvestmentList({
                 aria-hidden="true"
               />
             </button>
-            {group.stockType === "Open ended" ? (
-              <div className="investment-record-actions">
-                <button
-                  className="icon-button investment-result-button"
-                  type="button"
-                  title="Add profit/loss record"
-                  aria-label="Add profit/loss record"
-                  onClick={() => onAddProfitLoss({ kind: "group", group })}
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-            ) : null}
             {isOpen ? (
               <div className="investment-transaction-section">
                 <div className="investment-transaction-list">

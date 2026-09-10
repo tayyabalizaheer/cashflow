@@ -1161,7 +1161,7 @@ th {
 
 .investment-group-summary {
   display: grid;
-  grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.6fr) auto;
+  grid-template-columns: auto minmax(160px, 0.8fr) minmax(0, 1.6fr) auto;
   gap: 10px;
   align-items: center;
   width: 100%;
@@ -1191,16 +1191,21 @@ th {
   transform: rotate(180deg);
 }
 
-.investment-record-actions {
-  display: flex;
-  justify-content: flex-start;
-  padding: 0 14px 10px;
-}
-
 .investment-result-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 34px;
   height: 34px;
   min-width: 34px;
+}
+
+.investment-result-button-inline {
+  align-self: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--teal-soft);
+  color: var(--teal);
 }
 
 .asset-title-block,
@@ -3028,7 +3033,7 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
   }
 
   .investment-group-summary {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     min-width: 0;
   }
 
