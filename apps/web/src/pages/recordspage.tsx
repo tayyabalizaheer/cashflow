@@ -804,6 +804,7 @@ function InvestmentList({
                 <span>
                   {group.type}
                   {group.latestDate ? ` | ${group.latestDate}` : ""}
+                  {` | ${group.transactionCount} transaction(s)`}
                 </span>
               </div>
               <div className="investment-value-grid">
@@ -860,10 +861,6 @@ function InvestmentList({
                     </div>
                   </>
                 ) : null}
-                <div className="asset-value-cell">
-                  <span>Transactions</span>
-                  <strong>{group.transactionCount}</strong>
-                </div>
               </div>
               <ChevronDown
                 className="investment-accordion-icon"
@@ -874,11 +871,13 @@ function InvestmentList({
             {group.stockType === "Open ended" ? (
               <div className="investment-record-actions">
                 <button
-                  className="secondary-button compact"
+                  className="icon-button investment-result-button"
                   type="button"
+                  title="Add profit/loss record"
+                  aria-label="Add profit/loss record"
                   onClick={() => onAddProfitLoss({ kind: "group", group })}
                 >
-                  Add profit/loss record
+                  <Plus size={16} />
                 </button>
               </div>
             ) : null}
@@ -937,8 +936,10 @@ function InvestmentList({
                         </button>
                         {group.stockType === "Closed ended" ? (
                           <button
-                            className="secondary-button compact"
+                            className="icon-button investment-result-button"
                             type="button"
+                            title="Add record"
+                            aria-label="Add record"
                             onClick={() =>
                               onAddProfitLoss({
                                 kind: "transaction",
@@ -947,7 +948,7 @@ function InvestmentList({
                               })
                             }
                           >
-                            Add record
+                            <Plus size={16} />
                           </button>
                         ) : null}
                       </div>
@@ -2163,11 +2164,11 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
           />
         ) : null}
         <section className="expense-card asset-total-strip investment-total-strip">
-          <div>
+          <div className="investment-total-heading">
             <p className="eyebrow">Portfolio</p>
             <strong>{rows.length} investment transaction(s)</strong>
           </div>
-          <div className="asset-total-list investment-total-list">
+          <div className="investment-total-table">
             {investmentTotals.length === 0 ? (
               <span>No investment value yet</span>
             ) : (
@@ -2176,25 +2177,23 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                   className="investment-total-line"
                   key={summary.currencyCode}
                 >
-                  <span>{summary.currencyCode}</span>
-                  <strong>
-                    Total investment{" "}
-                    {formatAmountWithCode(summary.cost, summary.currencyCode)}
-                  </strong>
-                  <strong>
-                    Current value{" "}
-                    {formatAmountWithCode(
-                      summary.currentValue,
-                      summary.currencyCode,
-                    )}
-                  </strong>
-                  <strong className={profitLossClassName(summary.profitLoss)}>
-                    Profit / loss{" "}
-                    {formatAmountWithCode(
-                      summary.profitLoss,
-                      summary.currencyCode,
-                    )}
-                  </strong>
+                  <span className="investment-total-currency">
+                    {summary.currencyCode}
+                  </span>
+                  <span>
+                    <small>Total investment</small>
+                    <strong>{formatNumber(summary.cost)}</strong>
+                  </span>
+                  <span>
+                    <small>Current value</small>
+                    <strong>{formatNumber(summary.currentValue)}</strong>
+                  </span>
+                  <span>
+                    <small>Profit / loss</small>
+                    <strong className={profitLossClassName(summary.profitLoss)}>
+                      {formatNumber(summary.profitLoss)}
+                    </strong>
+                  </span>
                 </div>
               ))
             )}

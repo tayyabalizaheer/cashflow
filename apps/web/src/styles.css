@@ -1043,24 +1043,51 @@ th {
   overflow-wrap: anywhere;
 }
 
-.investment-total-list {
-  align-items: stretch;
+.investment-total-strip {
+  align-items: start;
+}
+
+.investment-total-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.investment-total-table {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
 }
 
 .investment-total-line {
   display: grid;
-  gap: 4px;
-  min-width: min(100%, 220px);
-  padding: 10px 12px;
+  grid-template-columns: minmax(58px, 0.4fr) repeat(3, minmax(120px, 1fr));
+  gap: 10px;
+  align-items: center;
+  padding: 9px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--mist);
 }
 
-.investment-total-line span {
+.investment-total-line span,
+.investment-total-line strong,
+.investment-total-line small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.investment-total-line small,
+.investment-total-currency {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 800;
+}
+
+.investment-total-line strong {
+  display: block;
+  margin-top: 2px;
 }
 
 .positive {
@@ -1137,10 +1164,10 @@ th {
 .investment-group-summary {
   display: grid;
   grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1.6fr) auto;
-  gap: 14px;
+  gap: 10px;
   align-items: center;
   width: 100%;
-  padding: 16px;
+  padding: 12px 14px;
   border: 0;
   background: transparent;
   color: var(--ink);
@@ -1169,7 +1196,13 @@ th {
 .investment-record-actions {
   display: flex;
   justify-content: flex-end;
-  padding: 0 16px 12px;
+  padding: 0 14px 10px;
+}
+
+.investment-result-button {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
 }
 
 .asset-title-block,
@@ -1199,8 +1232,8 @@ th {
 
 .investment-value-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
 }
 
 .asset-value-cell {
@@ -1208,6 +1241,18 @@ th {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--mist);
+}
+
+.investment-group-summary .asset-value-cell {
+  padding: 7px 9px;
+}
+
+.investment-group-summary .asset-value-cell span {
+  font-size: 0.76rem;
+}
+
+.investment-group-summary .asset-value-cell strong {
+  font-size: 0.94rem;
 }
 
 .asset-value-cell strong {
@@ -2987,6 +3032,10 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
   .investment-group-summary {
     grid-template-columns: minmax(0, 1fr) auto;
     min-width: 0;
+  }
+
+  .investment-total-line {
+    grid-template-columns: 1fr;
   }
 
   .investment-group-summary .investment-value-grid {
