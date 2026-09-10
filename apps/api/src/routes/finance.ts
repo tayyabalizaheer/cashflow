@@ -1382,8 +1382,6 @@ const investmentSchema = z.object({
   currentValue: nullableNonNegativeDecimal,
   tenure: z.string().trim().max(80).nullable().optional(),
   profitPayment: z.string().trim().max(120).nullable().optional(),
-  profitLossType: z.enum(["Book profit", "Book loss"]).nullable().optional(),
-  profitLossAmount: nullableNonNegativeDecimal,
   maturityDate: z.coerce.date().nullable().optional(),
   purchaseDate: z.coerce.date().optional(),
   latestValuationDate: z.coerce.date().optional(),
@@ -1401,11 +1399,6 @@ function investmentData(input: z.infer<typeof investmentSchema>) {
     nav: isClosedEnded ? null : input.nav,
     tenure: isClosedEnded ? input.tenure : null,
     profitPayment: isClosedEnded ? input.profitPayment : null,
-    profitLossType:
-      isClosedEnded && input.profitLossAmount
-        ? (input.profitLossType ?? "Book profit")
-        : null,
-    profitLossAmount: isClosedEnded ? input.profitLossAmount : null,
     maturityDate: isClosedEnded ? input.maturityDate : null,
   };
 }
@@ -1599,6 +1592,76 @@ financeRouter.put(
 );
 
 financeRouter.delete("/investments/:id", archiveRoute(prisma.investment));
+
+const investmentProfitLossSchema = z.object({
+  investmentId: z.string().uuid().nullable().optional(),
+  groupKey: z.string().trim().min(1).max(255),
+  groupTitle: z.string().trim().min(1).max(191),
+  stockType: z.enum(["Open ended", "Closed ended"]),
+  resultType: z.enum(["Dividend", "Book profit", "Book loss"]),
+  amount: positiveDecimal,
+  currency,
+  recordDate: z.coerce.date().nullable().optional(),
+  notes: noteText.optional(),
+});
+
+financeRouter.get(
+  "/investment-profit-loss",
+  asyncHandler(async (req, res) => {
+    const records = await prisma.investmentProfitLossRecord.findMany({
+      where: { userId: req.user!.id, archivedAt: null },
+      orderBy: [{ recordDate: "desc" }, { createdAt: "desc" }],
+    });
+    return res.json({ data: records });
+  }),
+);
+
+financeRouter.post(
+  "/investment-profit-loss",
+  asyncHandler(async (req, res) => {
+    const input = investmentProfitLossSchema.parse(req.body);
+    const isClosedEnded = input.stockType === "Closed ended";
+    const resultType = isClosedEnded ? input.resultType : "Dividend";
+    const investmentId = isClosedEnded ? input.investmentId : null;
+
+    if (isClosedEnded && !investmentId) {
+      throw new ApiError(
+        400,
+        "Choose the closed-ended transaction for this record.",
+        "BAD_REQUEST",
+      );
+    }
+
+    if (investmentId) {
+      const investment = await prisma.investment.findFirst({
+        where: { id: investmentId, userId: req.user!.id, archivedAt: null },
+      });
+      if (!investment) throw notFound("Investment not found");
+    }
+
+    const record = await prisma.investmentProfitLossRecord.create({
+      data: {
+        userId: req.user!.id,
+        investmentId,
+        groupKey: input.groupKey,
+        groupTitle: input.groupTitle,
+        stockType: input.stockType,
+        resultType,
+        amount: input.amount,
+        currency: input.currency,
+        recordDate: input.recordDate,
+        notes: input.notes,
+      },
+    });
+
+    return res.status(201).json({ data: record });
+  }),
+);
+
+financeRouter.delete(
+  "/investment-profit-loss/:id",
+  archiveRoute(prisma.investmentProfitLossRecord),
+);
 
 const stockAverageFields = [
   "repurchasePrice",

@@ -34,6 +34,7 @@ model User {
   loanTransactions    LoanTransaction[]
   loanRepayments      LoanRepayment[]
   investments         Investment[]
+  investmentResults   InvestmentProfitLossRecord[]
   assets              Asset[]
   accounts            BankAccount[]
   cards               BankCard[]
@@ -354,8 +355,6 @@ model Investment {
   currentValue        Decimal?  @db.Decimal(19, 4)
   tenure              String?
   profitPayment       String?
-  profitLossType      String?
-  profitLossAmount    Decimal?  @db.Decimal(19, 4)
   maturityDate        DateTime?
   purchaseDate        DateTime?
   latestValuationDate DateTime?
@@ -366,11 +365,35 @@ model Investment {
   updatedAt           DateTime  @updatedAt
   archivedAt          DateTime?
   user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profitLossRecords   InvestmentProfitLossRecord[]
 
   @@index([userId, type])
   @@index([userId, currency])
   @@index([userId, purchaseDate])
   @@index([userId, stockFundName])
+}
+
+model InvestmentProfitLossRecord {
+  id             String      @id @default(uuid())
+  userId         String
+  investmentId   String?
+  groupKey       String      @db.VarChar(255)
+  groupTitle     String      @db.VarChar(191)
+  stockType      String
+  resultType     String
+  amount         Decimal     @db.Decimal(19, 4)
+  currency       String
+  recordDate     DateTime?
+  notes          String?     @db.LongText
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  archivedAt     DateTime?
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  investment     Investment? @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+
+  @@index([userId, groupKey])
+  @@index([userId, investmentId])
+  @@index([userId, recordDate])
 }
 
 model Stock {

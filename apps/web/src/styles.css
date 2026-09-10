@@ -357,6 +357,12 @@ textarea[aria-invalid="true"] {
   min-height: 42px;
 }
 
+.secondary-button.compact {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 0.82rem;
+}
+
 .primary-button:disabled {
   opacity: 0.66;
   cursor: progress;
@@ -1160,6 +1166,12 @@ th {
   transform: rotate(180deg);
 }
 
+.investment-record-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 16px 12px;
+}
+
 .asset-title-block,
 .asset-value-cell {
   min-width: 0;
@@ -1233,6 +1245,18 @@ th {
   background: transparent;
   color: var(--ink);
   text-align: left;
+}
+
+.investment-transaction-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
@@ -1241,7 +1265,7 @@ th {
 }
 
 .investment-transaction-row:hover,
-.investment-transaction-row:focus-visible {
+.investment-transaction-row:focus-within {
   background: var(--teal-soft);
 }
 
