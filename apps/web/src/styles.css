@@ -1048,10 +1048,8 @@ th {
 }
 
 .investment-total-heading {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  flex-wrap: wrap;
+  display: grid;
+  gap: 6px;
 }
 
 .investment-total-table {
@@ -1195,7 +1193,7 @@ th {
 
 .investment-record-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   padding: 0 14px 10px;
 }
 
