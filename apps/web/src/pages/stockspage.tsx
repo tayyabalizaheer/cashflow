@@ -2,6 +2,16 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
@@ -63,6 +73,24 @@ type StockOption = {
   category: string | null;
 };
 
+type StockHistoryPoint = {
+  id: string;
+  fundName: string;
+  validityDate: string;
+  repurchasePrice: string | null;
+  offerPrice: string | null;
+  navPrice: string | null;
+};
+
+type StockRangePreset =
+  | "manual"
+  | "last-week"
+  | "last-month"
+  | "last-6-months"
+  | "last-year"
+  | "last-financial-year"
+  | "last-5-years";
+
 const visibleColumns = [
   { key: "repurchasePrice", label: "Repurchase" },
   { key: "offerPrice", label: "Offer" },
@@ -109,6 +137,16 @@ const trendBasisLabels: Record<NonNullable<StockTrend["basis"]>, string> = {
   offerPrice: "Offer",
 };
 
+const chartRangePresets: Array<{ key: StockRangePreset; label: string }> = [
+  { key: "last-week", label: "Last week" },
+  { key: "last-month", label: "Last month" },
+  { key: "last-6-months", label: "Last 6 months" },
+  { key: "last-year", label: "Last year" },
+  { key: "last-financial-year", label: "Last financial year" },
+  { key: "last-5-years", label: "Last 5 years" },
+  { key: "manual", label: "Manual" },
+];
+
 function formatDate(value: string | number | null | undefined) {
   return formatAppDate(value);
 }
@@ -123,6 +161,63 @@ function formatValue(value: string | number | boolean | null | undefined) {
   const number = Number(value);
   if (!Number.isFinite(number)) return value;
   return number.toLocaleString("en-US", { maximumFractionDigits: 4 });
+}
+
+function dateInputValue(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function addMonths(date: Date, months: number) {
+  const next = new Date(date);
+  next.setUTCMonth(next.getUTCMonth() + months);
+  return next;
+}
+
+function chartRangeForPreset(preset: StockRangePreset, anchorValue?: string) {
+  const anchor = anchorValue ? new Date(anchorValue) : new Date();
+  const safeAnchor = Number.isNaN(anchor.getTime()) ? new Date() : anchor;
+  const to = dateInputValue(safeAnchor);
+
+  if (preset === "last-week") {
+    return { from: dateInputValue(addDays(safeAnchor, -7)), to };
+  }
+  if (preset === "last-month") {
+    return { from: dateInputValue(addMonths(safeAnchor, -1)), to };
+  }
+  if (preset === "last-6-months") {
+    return { from: dateInputValue(addMonths(safeAnchor, -6)), to };
+  }
+  if (preset === "last-5-years") {
+    return { from: dateInputValue(addMonths(safeAnchor, -60)), to };
+  }
+  if (preset === "last-financial-year") {
+    const year = safeAnchor.getUTCFullYear();
+    const month = safeAnchor.getUTCMonth();
+    const currentFinancialYearStart = new Date(
+      Date.UTC(month >= 6 ? year : year - 1, 6, 1),
+    );
+    const from = new Date(
+      Date.UTC(currentFinancialYearStart.getUTCFullYear() - 1, 6, 1),
+    );
+    const lastFinancialYearEnd = addDays(currentFinancialYearStart, -1);
+    return {
+      from: dateInputValue(from),
+      to: dateInputValue(lastFinancialYearEnd),
+    };
+  }
+
+  return { from: dateInputValue(addMonths(safeAnchor, -12)), to };
+}
+
+function chartNumber(value: string | null) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function detailValue(stock: Stock, row: (typeof detailRows)[number]) {
@@ -184,6 +279,10 @@ export function StocksPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
+  const [chartPreset, setChartPreset] =
+    useState<StockRangePreset>("last-year");
+  const [chartFromDate, setChartFromDate] = useState("");
+  const [chartToDate, setChartToDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [appliedFromDate, setAppliedFromDate] = useState("");
   const [appliedToDate, setAppliedToDate] = useState("");
@@ -238,6 +337,27 @@ export function StocksPage() {
     queryKey: ["stock-options"],
     queryFn: () =>
       api<{ data: StockOption[] }>("/stocks/options", { onlineOnly: true }),
+  });
+  const chartRange = useMemo(() => {
+    if (chartPreset === "manual") {
+      return { from: chartFromDate, to: chartToDate };
+    }
+    return chartRangeForPreset(chartPreset, selectedStock?.validityDate);
+  }, [chartFromDate, chartPreset, chartToDate, selectedStock?.validityDate]);
+  const stockHistoryPath = useMemo(() => {
+    if (!selectedStock) return null;
+    const params = new URLSearchParams({ fundName: selectedStock.fundName });
+    if (chartRange.from) params.set("from", chartRange.from);
+    if (chartRange.to) params.set("to", chartRange.to);
+    return `/stocks/history?${params.toString()}`;
+  }, [chartRange.from, chartRange.to, selectedStock]);
+  const stockHistoryQuery = useQuery({
+    queryKey: ["stock-history", stockHistoryPath],
+    enabled: Boolean(stockHistoryPath),
+    queryFn: () =>
+      api<{ data: StockHistoryPoint[] }>(stockHistoryPath!, {
+        onlineOnly: true,
+      }),
   });
   const favoriteMutation = useMutation({
     mutationFn: (input: { fundName: string; favorite: boolean }) =>
@@ -308,6 +428,17 @@ export function StocksPage() {
     (appliedToDate ? 1 : 0) +
     appliedStockNames.length +
     (appliedAverageByStock ? 1 : 0);
+  const stockChartData = useMemo(
+    () =>
+      (stockHistoryQuery.data?.data ?? []).map((point) => ({
+        date: formatDate(point.validityDate),
+        validityDate: point.validityDate,
+        repurchasePrice: chartNumber(point.repurchasePrice),
+        navPrice: chartNumber(point.navPrice),
+        offerPrice: chartNumber(point.offerPrice),
+      })),
+    [stockHistoryQuery.data?.data],
+  );
 
   function openFilters() {
     setDraftFromDate(appliedFromDate);
@@ -353,11 +484,30 @@ export function StocksPage() {
     });
   }
 
+  function openStock(stock: Stock) {
+    setSelectedStock(stock);
+    setChartPreset("last-year");
+    setChartFromDate("");
+    setChartToDate("");
+  }
+
+  function changeChartPreset(preset: StockRangePreset) {
+    if (preset === "manual") {
+      const currentRange =
+        chartPreset === "manual"
+          ? chartRange
+          : chartRangeForPreset(chartPreset, selectedStock?.validityDate);
+      setChartFromDate(chartFromDate || currentRange.from);
+      setChartToDate(chartToDate || currentRange.to);
+    }
+    setChartPreset(preset);
+  }
+
   function openStockFromKeyboard(event: KeyboardEvent, stock: Stock) {
     if (event.target !== event.currentTarget) return;
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      setSelectedStock(stock);
+      openStock(stock);
     }
   }
 
@@ -599,7 +749,7 @@ export function StocksPage() {
                   <tr
                     key={stock.id}
                     className="clickable-row"
-                    onClick={() => setSelectedStock(stock)}
+                    onClick={() => openStock(stock)}
                     onKeyDown={(event) => openStockFromKeyboard(event, stock)}
                     tabIndex={0}
                   >
@@ -648,7 +798,7 @@ export function StocksPage() {
                 role="button"
                 tabIndex={0}
                 key={stock.id}
-                onClick={() => setSelectedStock(stock)}
+                onClick={() => openStock(stock)}
                 onKeyDown={(event) => openStockFromKeyboard(event, stock)}
               >
                 <span className="stock-card-header">
@@ -748,6 +898,120 @@ export function StocksPage() {
               >
                 <X size={18} />
               </button>
+            </div>
+            <div className="stock-chart-section">
+              <div className="stock-chart-toolbar">
+                <div className="stock-chart-title">
+                  <strong>Price history</strong>
+                  <span>
+                    {chartRange.from ? formatDate(chartRange.from) : "Start"} -{" "}
+                    {chartRange.to ? formatDate(chartRange.to) : "Today"}
+                  </span>
+                </div>
+                <div className="stock-range-buttons" aria-label="Chart range">
+                  {chartRangePresets.map((preset) => (
+                    <button
+                      className={
+                        chartPreset === preset.key ? "selected" : undefined
+                      }
+                      type="button"
+                      key={preset.key}
+                      onClick={() => changeChartPreset(preset.key)}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {chartPreset === "manual" ? (
+                <div className="stock-chart-dates">
+                  <label>
+                    From date
+                    <input
+                      type="date"
+                      value={chartFromDate}
+                      onChange={(event) => setChartFromDate(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    To date
+                    <input
+                      type="date"
+                      value={chartToDate}
+                      onChange={(event) => setChartToDate(event.target.value)}
+                    />
+                  </label>
+                </div>
+              ) : null}
+              <div className="stock-chart-wrap">
+                {stockHistoryQuery.isLoading ? (
+                  <div className="empty-state">Loading price history...</div>
+                ) : stockHistoryQuery.error ? (
+                  <div className="form-error">Could not load price history.</div>
+                ) : stockChartData.length === 0 ? (
+                  <div className="empty-state">
+                    No price history found for this range.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={stockChartData}
+                      margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" minTickGap={18} />
+                      <YAxis
+                        width={64}
+                        domain={["auto", "auto"]}
+                        tickFormatter={(value) => String(formatValue(value))}
+                      />
+                      <Tooltip
+                        labelFormatter={(_, payload) =>
+                          payload?.[0]?.payload?.validityDate
+                            ? formatDate(payload[0].payload.validityDate)
+                            : ""
+                        }
+                        formatter={(value, name) => [
+                          formatValue(value as number),
+                          name === "repurchasePrice"
+                            ? "Repurchase"
+                            : name === "navPrice"
+                              ? "NAV"
+                              : "Offer",
+                        ]}
+                      />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="repurchasePrice"
+                        name="Repurchase"
+                        stroke="#0f5f5c"
+                        strokeWidth={2}
+                        dot={false}
+                        connectNulls
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="navPrice"
+                        name="NAV"
+                        stroke="#5b6f95"
+                        strokeWidth={2}
+                        dot={false}
+                        connectNulls
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="offerPrice"
+                        name="Offer"
+                        stroke="#b1465a"
+                        strokeWidth={2}
+                        dot={false}
+                        connectNulls
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
             </div>
             <dl className="detail-list stock-detail-list">
               {detailRows.map((row) => (

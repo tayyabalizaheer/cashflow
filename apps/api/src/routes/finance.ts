@@ -1930,6 +1930,12 @@ const stockFavoriteSchema = z.object({
   favorite: z.boolean(),
 });
 
+const stockHistoryQuery = z.object({
+  fundName: z.string().trim().min(1).max(191),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+});
+
 financeRouter.put(
   "/stocks/favorites",
   asyncHandler(async (req, res) => {
@@ -1961,6 +1967,30 @@ financeRouter.put(
     return res.json({
       data: { fundName: input.fundName, isFavorite: input.favorite },
     });
+  }),
+);
+
+financeRouter.get(
+  "/stocks/history",
+  asyncHandler(async (req, res) => {
+    const { fundName, from, to } = stockHistoryQuery.parse(req.query);
+    const rows = await prisma.stock.findMany({
+      where: {
+        fundName,
+        ...(from || to ? { validityDate: { gte: from, lte: to } } : {}),
+      },
+      select: {
+        id: true,
+        fundName: true,
+        validityDate: true,
+        repurchasePrice: true,
+        offerPrice: true,
+        navPrice: true,
+      },
+      orderBy: { validityDate: "asc" },
+    });
+
+    return res.json({ data: rows });
   }),
 );
 

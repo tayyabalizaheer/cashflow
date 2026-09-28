@@ -2668,7 +2668,9 @@ th {
 }
 
 .stock-detail-modal {
-  width: min(920px, 100%);
+  width: min(1120px, 100%);
+  max-height: min(900px, 92vh);
+  overflow: auto;
 }
 
 .image-modal {
@@ -2685,6 +2687,91 @@ th {
 
 .stock-detail-list dd {
   overflow-wrap: anywhere;
+}
+
+.stock-chart-section {
+  display: grid;
+  gap: 12px;
+}
+
+.stock-chart-toolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(0, 2fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.stock-chart-title {
+  display: grid;
+  gap: 3px;
+}
+
+.stock-chart-title strong {
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.stock-chart-title span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.stock-range-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.stock-range-buttons button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.stock-range-buttons button.selected {
+  border-color: rgba(15, 95, 92, 0.32);
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+
+.stock-chart-dates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.stock-chart-dates label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.stock-chart-wrap {
+  height: 340px;
+  min-height: 280px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--mist);
+}
+
+.stock-chart-wrap .empty-state,
+.stock-chart-wrap .form-error {
+  height: 100%;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .inline-link {
@@ -3239,6 +3326,20 @@ html[data-theme="dark"] .loan-kind-option.debit.selected {
 
   .stock-detail-list {
     grid-template-columns: 1fr;
+  }
+
+  .stock-chart-toolbar,
+  .stock-chart-dates {
+    grid-template-columns: 1fr;
+  }
+
+  .stock-range-buttons {
+    justify-content: flex-start;
+  }
+
+  .stock-chart-wrap {
+    height: 300px;
+    padding: 8px 4px 8px 0;
   }
 
   .stock-date-grid,
