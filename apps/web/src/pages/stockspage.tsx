@@ -349,7 +349,7 @@ export function StocksPage() {
     const params = new URLSearchParams({ fundName: selectedStock.fundName });
     if (chartRange.from) params.set("from", chartRange.from);
     if (chartRange.to) params.set("to", chartRange.to);
-    return `/stocks/history?${params.toString()}`;
+    return `/stock-history?${params.toString()}`;
   }, [chartRange.from, chartRange.to, selectedStock]);
   const stockHistoryQuery = useQuery({
     queryKey: ["stock-history", stockHistoryPath],

@@ -1936,6 +1936,27 @@ const stockHistoryQuery = z.object({
   to: z.coerce.date().optional(),
 });
 
+const stockHistoryHandler = asyncHandler(async (req, res) => {
+  const { fundName, from, to } = stockHistoryQuery.parse(req.query);
+  const rows = await prisma.stock.findMany({
+    where: {
+      fundName,
+      ...(from || to ? { validityDate: { gte: from, lte: to } } : {}),
+    },
+    select: {
+      id: true,
+      fundName: true,
+      validityDate: true,
+      repurchasePrice: true,
+      offerPrice: true,
+      navPrice: true,
+    },
+    orderBy: { validityDate: "asc" },
+  });
+
+  return res.json({ data: rows });
+});
+
 financeRouter.put(
   "/stocks/favorites",
   asyncHandler(async (req, res) => {
@@ -1970,29 +1991,8 @@ financeRouter.put(
   }),
 );
 
-financeRouter.get(
-  "/stocks/history",
-  asyncHandler(async (req, res) => {
-    const { fundName, from, to } = stockHistoryQuery.parse(req.query);
-    const rows = await prisma.stock.findMany({
-      where: {
-        fundName,
-        ...(from || to ? { validityDate: { gte: from, lte: to } } : {}),
-      },
-      select: {
-        id: true,
-        fundName: true,
-        validityDate: true,
-        repurchasePrice: true,
-        offerPrice: true,
-        navPrice: true,
-      },
-      orderBy: { validityDate: "asc" },
-    });
-
-    return res.json({ data: rows });
-  }),
-);
+financeRouter.get("/stock-history", stockHistoryHandler);
+financeRouter.get("/stocks/history", stockHistoryHandler);
 
 financeRouter.get(
   "/stocks/options",
