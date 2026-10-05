@@ -268,18 +268,44 @@ function shareBalanceSentence(
   return `The balance is settled for ${balance.currency}.`;
 }
 
+function latestLoanTransaction(transactions: LoanTransaction[] = []) {
+  return transactions
+    .filter((transaction) => !transaction.archivedAt)
+    .sort(compareTransactionsByCreatedDesc)[0];
+}
+
+function shareTransactionSentence(
+  transaction: LoanTransaction,
+  loginName: string,
+  personName: string,
+) {
+  const amount = formatCurrency(transaction.amount, transaction.currency);
+
+  if (transaction.kind === "CREDIT") {
+    return `${personName} gave ${amount} to ${loginName}.`;
+  }
+
+  return `${personName} took ${amount} from ${loginName}.`;
+}
+
 function loanShareText(loan: Loan, loginName: string) {
   const balances = loan.balances?.length
     ? loan.balances
     : [{ currency: "USD", balance: "0" }];
-  const balanceSummary = balances
-    .map((balance) => formatCurrency(balance.balance, balance.currency))
-    .join(", ");
+  const latestTransaction = latestLoanTransaction(loan.transactions);
   const balanceDetails = balances
     .map((balance) => shareBalanceSentence(balance, loginName, loan.person))
     .join(" ");
 
-  return `Your balance with ${loginName} is: ${balanceSummary}.\n${balanceDetails}\n\nClick below for details.`;
+  const firstLine = latestTransaction
+    ? shareTransactionSentence(latestTransaction, loginName, loan.person)
+    : balanceDetails;
+
+  if (!latestTransaction) {
+    return `${firstLine}\n\nClick below for details.`;
+  }
+
+  return `${firstLine}\n${balanceDetails}\n\nClick below for details.`;
 }
 
 function TransactionKindPicker({
