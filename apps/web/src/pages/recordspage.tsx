@@ -9,6 +9,7 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
+  Star,
   Trash2,
   X,
 } from "lucide-react";
@@ -36,6 +37,7 @@ type Category = {
 type StockOption = {
   fundName: string;
   category: string | null;
+  isFavorite?: boolean;
 };
 
 type ExpenseCurrencyLine = {
@@ -1116,6 +1118,9 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
     zakatEligible: false,
     notes: "",
   });
+  const [investmentStockDropdownOpen, setInvestmentStockDropdownOpen] =
+    useState(false);
+  const [investmentStockSearch, setInvestmentStockSearch] = useState("");
   const [investmentResultForm, setInvestmentResultForm] =
     useState<InvestmentResultFormState>({
       amount: "",
@@ -1233,6 +1238,8 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       queryClient.invalidateQueries({ queryKey: ["investments"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setShowInvestmentForm(false);
+      setInvestmentStockDropdownOpen(false);
+      setInvestmentStockSearch("");
       setInvestmentForm((current) => ({
         ...current,
         sourceMode: "stock",
@@ -1287,6 +1294,8 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setShowInvestmentForm(false);
       setEditingInvestment(null);
+      setInvestmentStockDropdownOpen(false);
+      setInvestmentStockSearch("");
     },
   });
   const deleteExpense = useMutation({
@@ -1330,6 +1339,23 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
   const userCurrencies = userCurrenciesData?.data ?? [];
   const assetExpenses = assetExpenseData?.data ?? [];
   const stockOptions = stockOptionsData?.data ?? [];
+  const investmentStockSearchTerm = investmentStockSearch.trim().toLowerCase();
+  const investmentStockOptions = stockOptions
+    .filter((stock) => {
+      if (!investmentStockSearchTerm) return true;
+      return [stock.fundName, stock.category].some((value) =>
+        value?.toLowerCase().includes(investmentStockSearchTerm),
+      );
+    })
+    .sort((left, right) => {
+      const favoriteSort =
+        Number(Boolean(right.isFavorite)) - Number(Boolean(left.isFavorite));
+      if (favoriteSort !== 0) return favoriteSort;
+      return left.fundName.localeCompare(right.fundName);
+    });
+  const selectedInvestmentStock = stockOptions.find(
+    (stock) => stock.fundName === investmentForm.stockFundName,
+  );
   const investmentProfitLossRecords = investmentProfitLossData?.data ?? [];
   const investmentGroupRows =
     module === "investments"
@@ -1434,6 +1460,8 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
   }
 
   function setInvestmentSourceMode(mode: InvestmentFormState["sourceMode"]) {
+    setInvestmentStockDropdownOpen(false);
+    setInvestmentStockSearch("");
     setInvestmentForm((current) => ({
       ...current,
       sourceMode: mode,
@@ -1461,6 +1489,8 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
   }
 
   function chooseInvestmentStock(fundName: string) {
+    setInvestmentStockDropdownOpen(false);
+    setInvestmentStockSearch("");
     setInvestmentForm((current) => ({
       ...current,
       sourceMode: "stock",
@@ -1719,6 +1749,8 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
 
   function startAddInvestment() {
     setEditingInvestment(null);
+    setInvestmentStockDropdownOpen(false);
+    setInvestmentStockSearch("");
     setInvestmentForm((current) => ({
       ...current,
       sourceMode: "stock",
@@ -1743,6 +1775,8 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
   function startEditInvestment(investment: RecordItem) {
     setOpenActionMenu(null);
     setEditingInvestment(investment);
+    setInvestmentStockDropdownOpen(false);
+    setInvestmentStockSearch("");
     setInvestmentForm({
       sourceMode: investment.stockFundName ? "stock" : "manual",
       type: investment.type ?? "",
@@ -1770,6 +1804,8 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
   function closeInvestmentForm() {
     setShowInvestmentForm(false);
     setEditingInvestment(null);
+    setInvestmentStockDropdownOpen(false);
+    setInvestmentStockSearch("");
   }
 
   function requestDeleteInvestment(investment: RecordItem) {
@@ -2262,24 +2298,78 @@ export function RecordsPage({ module }: { module: keyof typeof config }) {
                 </div>
                 <div className="compact-form">
                   {investmentForm.sourceMode === "stock" ? (
-                    <label>
-                      Stock
-                      <select
-                        value={investmentForm.stockFundName}
-                        onChange={(event) =>
-                          chooseInvestmentStock(event.target.value)
-                        }
-                        required
-                      >
-                        <option value="">Choose from stocks</option>
-                        {stockOptions.map((stock) => (
-                          <option key={stock.fundName} value={stock.fundName}>
-                            {stock.fundName}
-                            {stock.category ? ` - ${stock.category}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <div className="field-stack">
+                      <span className="input-label-text">Stock</span>
+                      <div className="stock-select-dropdown investment-stock-select">
+                        <button
+                          className="stock-select-trigger"
+                          type="button"
+                          onClick={() =>
+                            setInvestmentStockDropdownOpen((value) => !value)
+                          }
+                          aria-expanded={investmentStockDropdownOpen}
+                        >
+                          <span>
+                            {selectedInvestmentStock
+                              ? selectedInvestmentStock.fundName
+                              : "Choose from stocks"}
+                          </span>
+                          <ChevronDown size={17} />
+                        </button>
+                        {investmentStockDropdownOpen ? (
+                          <div className="stock-select-panel">
+                            <label className="stock-select-search">
+                              <Search size={15} />
+                              <input
+                                autoFocus
+                                aria-label="Search investment stocks"
+                                placeholder="Search stock"
+                                value={investmentStockSearch}
+                                onChange={(event) =>
+                                  setInvestmentStockSearch(event.target.value)
+                                }
+                              />
+                            </label>
+                            <div className="stock-option-grid">
+                              {investmentStockOptions.map((stock) => (
+                                <button
+                                  className={`stock-option investment-stock-option ${
+                                    stock.fundName ===
+                                    investmentForm.stockFundName
+                                      ? "selected"
+                                      : ""
+                                  }`}
+                                  key={stock.fundName}
+                                  type="button"
+                                  onClick={() =>
+                                    chooseInvestmentStock(stock.fundName)
+                                  }
+                                >
+                                  <span>
+                                    <strong>{stock.fundName}</strong>
+                                    <small>
+                                      {stock.category ?? "Uncategorized"}
+                                    </small>
+                                  </span>
+                                  {stock.isFavorite ? (
+                                    <Star
+                                      size={15}
+                                      fill="currentColor"
+                                      aria-label="Favorite"
+                                    />
+                                  ) : null}
+                                </button>
+                              ))}
+                              {investmentStockOptions.length === 0 ? (
+                                <div className="empty-state">
+                                  No stocks match your search.
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
                   ) : (
                     <>
                       <label>

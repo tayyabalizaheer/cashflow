@@ -1996,13 +1996,19 @@ financeRouter.get("/stocks/history", stockHistoryHandler);
 
 financeRouter.get(
   "/stocks/options",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const rows = await prisma.stock.findMany({
       distinct: ["fundName"],
       select: { fundName: true, category: true },
       orderBy: { fundName: "asc" },
     });
-    return res.json({ data: rows });
+    const favoriteNames = await favoriteStockNamesFor(rows, req.user!.id);
+    return res.json({
+      data: sortStockRowsForUser(rows, favoriteNames).map((row) => ({
+        ...row,
+        isFavorite: favoriteNames.has(row.fundName),
+      })),
+    });
   }),
 );
 
