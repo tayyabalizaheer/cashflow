@@ -1605,14 +1605,37 @@ const investmentProfitLossSchema = z.object({
   notes: noteText.optional(),
 });
 
+function isInvestmentProfitLossStorageMissing(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+
+  const code =
+    "code" in error && typeof error.code === "string" ? error.code : "";
+  const message =
+    "message" in error && typeof error.message === "string"
+      ? error.message
+      : "";
+
+  return (
+    ["P2021", "P2022"].includes(code) &&
+    message.toLowerCase().includes("investmentprofitlossrecord")
+  );
+}
+
 financeRouter.get(
   "/investment-profit-loss",
   asyncHandler(async (req, res) => {
-    const records = await prisma.investmentProfitLossRecord.findMany({
-      where: { userId: req.user!.id, archivedAt: null },
-      orderBy: [{ recordDate: "desc" }, { createdAt: "desc" }],
-    });
-    return res.json({ data: records });
+    try {
+      const records = await prisma.investmentProfitLossRecord.findMany({
+        where: { userId: req.user!.id, archivedAt: null },
+        orderBy: [{ recordDate: "desc" }, { createdAt: "desc" }],
+      });
+      return res.json({ data: records });
+    } catch (error) {
+      if (isInvestmentProfitLossStorageMissing(error)) {
+        return res.json({ data: [] });
+      }
+      throw error;
+    }
   }),
 );
 
@@ -1639,20 +1662,32 @@ financeRouter.post(
       if (!investment) throw notFound("Investment not found");
     }
 
-    const record = await prisma.investmentProfitLossRecord.create({
-      data: {
-        userId: req.user!.id,
-        investmentId,
-        groupKey: input.groupKey,
-        groupTitle: input.groupTitle,
-        stockType: input.stockType,
-        resultType,
-        amount: input.amount,
-        currency: input.currency,
-        recordDate: input.recordDate,
-        notes: input.notes,
-      },
-    });
+    let record;
+    try {
+      record = await prisma.investmentProfitLossRecord.create({
+        data: {
+          userId: req.user!.id,
+          investmentId,
+          groupKey: input.groupKey,
+          groupTitle: input.groupTitle,
+          stockType: input.stockType,
+          resultType,
+          amount: input.amount,
+          currency: input.currency,
+          recordDate: input.recordDate,
+          notes: input.notes,
+        },
+      });
+    } catch (error) {
+      if (isInvestmentProfitLossStorageMissing(error)) {
+        throw new ApiError(
+          503,
+          "Investment profit/loss storage is not ready. Run database migrations and try again.",
+          "SERVICE_UNAVAILABLE",
+        );
+      }
+      throw error;
+    }
 
     return res.status(201).json({ data: record });
   }),
