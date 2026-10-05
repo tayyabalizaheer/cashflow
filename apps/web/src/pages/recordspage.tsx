@@ -831,7 +831,11 @@ function InvestmentList({
                   {` | ${group.transactionCount} transaction(s)`}
                 </span>
               </div>
-              <div className="investment-value-grid">
+              <div
+                className={`investment-value-grid ${
+                  group.stockType === "Closed ended" ? "closed-ended" : ""
+                }`}
+              >
                 <div className="asset-value-cell">
                   <span>Total cost</span>
                   {group.totals.map((total) => (

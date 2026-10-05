@@ -1161,7 +1161,7 @@ th {
 
 .investment-group-summary {
   display: grid;
-  grid-template-columns: auto minmax(160px, 0.8fr) minmax(0, 1.6fr) auto;
+  grid-template-columns: auto minmax(240px, 1fr) minmax(360px, 2.1fr) auto;
   gap: 10px;
   align-items: center;
   width: 100%;
@@ -1237,6 +1237,12 @@ th {
   display: grid;
   grid-template-columns: repeat(5, minmax(112px, 1fr));
   gap: 8px;
+}
+
+.investment-value-grid.closed-ended {
+  grid-template-columns: repeat(3, minmax(112px, 1fr));
+  justify-self: end;
+  width: min(100%, 360px);
 }
 
 .asset-value-cell {
